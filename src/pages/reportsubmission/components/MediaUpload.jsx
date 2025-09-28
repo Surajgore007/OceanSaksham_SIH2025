@@ -36,8 +36,12 @@ const MediaUpload = ({
   // Cleanup camera stream on unmount
   useEffect(() => {
     return () => {
+      // stop any active stream when component unmounts
       if (cameraStream) {
-        cameraStream?.getTracks()?.forEach(track => track?.stop());
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current) {
+        try { videoRef.current.pause(); videoRef.current.srcObject = null; } catch (e) {}
       }
     };
   }, [cameraStream]);
@@ -187,62 +191,135 @@ const MediaUpload = ({
     onFilesChange([...uploadedFiles, ...processedFiles]);
   };
 
+  // Helper: try multiple getUserMedia constraints to avoid stuck-facingMode issues
+  const getMediaStream = async (mode) => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Media devices API not supported');
+    }
+
+    const constraintsList = [
+      { video: { facingMode: { exact: mode } } }, // strict
+      { video: { facingMode: mode } }, // loose
+      { video: true } // any camera
+    ];
+
+    let lastError = null;
+    for (const constraints of constraintsList) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        return stream;
+      } catch (err) {
+        lastError = err;
+        // try next fallback
+      }
+    }
+    // If all attempts failed, throw the last error for diagnostics
+    throw lastError || new Error('Unable to obtain media stream');
+  };
+
   const startCamera = async () => {
     try {
       setErrors([]);
       setIsVideoReady(false);
-      
-      // Stop any existing stream
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setErrors(['Camera not supported in this browser']);
+        return;
       }
 
-      const constraints = {
-        video: { 
-          facingMode: facingMode
-        }
-      };
+      // Stop any existing stream cleanly
+      if (cameraStream) {
+        try {
+          cameraStream.getTracks().forEach(track => track.stop());
+        } catch (e) {}
+        setCameraStream(null);
+      }
 
-      const stream = await navigator.mediaDevices?.getUserMedia(constraints);
+      // Try to get a stream with resilient fallbacks
+      let stream;
+      try {
+        stream = await getMediaStream(facingMode);
+      } catch (err) {
+        console.error('getUserMedia all fallbacks failed:', err);
+        let message = 'Unable to access camera. Please check permissions and try again.';
+        if (err && err.name === 'NotFoundError') message = 'No camera found on this device.';
+        if (err && err.name === 'NotAllowedError') message = 'Camera permission denied. Please allow camera access.';
+        setErrors([message]);
+        setIsCapturing(false);
+        return;
+      }
+
       setCameraStream(stream);
       setIsCapturing(true);
-      
-      if (videoRef?.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Simplified event handler
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().then(() => {
-            setIsVideoReady(true);
-          }).catch(error => {
-            console.error('Video play error:', error);
-            setErrors(['Failed to start video stream. Please try again.']);
-          });
-        };
-      }
 
+      if (videoRef?.current) {
+        // Attach stream to video and attempt to play
+        videoRef.current.srcObject = stream;
+
+        try {
+          // Await play promise — some browsers require this to actually start playback
+          // muted + playsInline help autoplay on mobile
+          await videoRef.current.play();
+          setIsVideoReady(true);
+        } catch (playError) {
+          // small retry after brief delay
+          console.warn('video.play() failed initially, retrying...', playError);
+          await new Promise(res => setTimeout(res, 250));
+          try {
+            await videoRef.current.play();
+            setIsVideoReady(true);
+          } catch (finalPlayError) {
+            console.error('Failed to start video playback:', finalPlayError);
+            setErrors(['Failed to start camera preview. Please try again.']);
+            // Cleanup
+            try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+            setCameraStream(null);
+            setIsCapturing(false);
+            setIsVideoReady(false);
+          }
+        }
+      } else {
+        // No video element — still keep stream in state (rare)
+        setIsVideoReady(true);
+      }
     } catch (error) {
       console.error('Camera error:', error);
       let errorMessage = 'Camera access denied. Please enable camera permissions to take photos.';
       
-      if (error.name === 'NotFoundError') {
+      if (error && error.name === 'NotFoundError') {
         errorMessage = 'No camera found. Please ensure your device has a camera.';
-      } else if (error.name === 'NotAllowedError') {
+      } else if (error && error.name === 'NotAllowedError') {
         errorMessage = 'Camera permission denied. Please allow camera access and try again.';
-      } else if (error.name === 'NotReadableError') {
+      } else if (error && error.name === 'NotReadableError') {
         errorMessage = 'Camera is already in use by another application.';
       }
       
       setErrors([errorMessage]);
       setIsCapturing(false);
+      setIsVideoReady(false);
     }
   };
 
   const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream?.getTracks()?.forEach(track => track?.stop());
-      setCameraStream(null);
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => {
+          try { track.stop(); } catch (e) {}
+        });
+      }
+    } catch (e) {
+      console.warn('Error stopping tracks', e);
     }
+
+    try {
+      if (videoRef.current) {
+        try { videoRef.current.pause(); } catch (e) {}
+        try { videoRef.current.srcObject = null; } catch (e) {}
+      }
+    } catch (e) {}
+
+    setCameraStream(null);
     setIsCapturing(false);
     setIsVideoReady(false);
   };
@@ -250,19 +327,14 @@ const MediaUpload = ({
   const switchCamera = async () => {
     const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
     setFacingMode(newFacingMode);
-    
+
     if (isCapturing) {
       // Stop current stream before starting new one
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        setCameraStream(null);
-      }
-      setIsVideoReady(false);
-      
-      // Start with new facing mode after a short delay
+      stopCamera();
+      // small delay to ensure tracks are released on some devices/browsers
       setTimeout(() => {
         startCamera();
-      }, 100);
+      }, 150);
     }
   };
 
@@ -284,9 +356,9 @@ const MediaUpload = ({
         throw new Error('Could not get canvas context');
       }
 
-      // Set canvas dimensions to match video
-      canvas.width = video?.videoWidth || 640;
-      canvas.height = video?.videoHeight || 480;
+      // Set canvas dimensions to match video, fallback to 1280x720
+      canvas.width = video?.videoWidth || 1280;
+      canvas.height = video?.videoHeight || 720;
 
       // Draw current video frame to canvas
       ctx?.drawImage(video, 0, 0, canvas?.width, canvas?.height);
@@ -378,7 +450,7 @@ const MediaUpload = ({
         <video
            ref={videoRef}
            autoPlay
-            playsInline
+           playsInline
            muted
            controls={false}
           className="w-full h-full object-cover"
