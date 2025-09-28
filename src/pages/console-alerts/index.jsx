@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Icon from '../../components/AppIcon';
+import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
 import Header from '../../components/ui/Header';
 import BottomTabNavigation from '../../components/ui/BottomTabNavigation';
