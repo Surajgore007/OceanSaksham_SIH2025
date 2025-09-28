@@ -17,7 +17,7 @@ const Routes = () => {
       <ScrollToTop />
       <RouterRoutes>
         {/* Define your route here */}
-        <Route path="/" element={<ConsoleAlerts />} />
+        <Route path="/" element={<LoginPage />} />
         <Route path="/main-dashboard" element={<MainDashboard />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/official-console" element={<OfficialConsole />} />
