@@ -16,7 +16,6 @@ const MediaUpload = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-  const [isVideoReady, setIsVideoReady] = useState(false);
   const [facingMode, setFacingMode] = useState('environment'); // 'user' for front, 'environment' for back
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   
@@ -36,12 +35,10 @@ const MediaUpload = ({
   // Cleanup camera stream on unmount
   useEffect(() => {
     return () => {
-      // stop any active stream when component unmounts
       if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-      if (videoRef.current) {
-        try { videoRef.current.pause(); videoRef.current.srcObject = null; } catch (e) {}
+        try { 
+          cameraStream.getTracks().forEach(track => track.stop()); 
+        } catch (e) {}
       }
     };
   }, [cameraStream]);
@@ -191,156 +188,83 @@ const MediaUpload = ({
     onFilesChange([...uploadedFiles, ...processedFiles]);
   };
 
-  // Helper: try multiple getUserMedia constraints to avoid stuck-facingMode issues
-  const getMediaStream = async (mode) => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('Media devices API not supported');
-    }
-
-    const constraintsList = [
-      { video: { facingMode: { exact: mode } } }, // strict
-      { video: { facingMode: mode } }, // loose
-      { video: true } // any camera
-    ];
-
-    let lastError = null;
-    for (const constraints of constraintsList) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        return stream;
-      } catch (err) {
-        lastError = err;
-        // try next fallback
-      }
-    }
-    // If all attempts failed, throw the last error for diagnostics
-    throw lastError || new Error('Unable to obtain media stream');
-  };
-
   const startCamera = async () => {
     try {
       setErrors([]);
-      setIsVideoReady(false);
 
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         setErrors(['Camera not supported in this browser']);
         return;
       }
 
-      // Stop any existing stream cleanly
+      // Stop any existing stream
       if (cameraStream) {
-        try {
-          cameraStream.getTracks().forEach(track => track.stop());
-        } catch (e) {}
+        cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
       }
 
-      // Try to get a stream with resilient fallbacks
-      let stream;
-      try {
-        stream = await getMediaStream(facingMode);
-      } catch (err) {
-        console.error('getUserMedia all fallbacks failed:', err);
-        let message = 'Unable to access camera. Please check permissions and try again.';
-        if (err && err.name === 'NotFoundError') message = 'No camera found on this device.';
-        if (err && err.name === 'NotAllowedError') message = 'Camera permission denied. Please allow camera access.';
-        setErrors([message]);
-        setIsCapturing(false);
-        return;
-      }
+      // Simple camera constraints
+      const constraints = {
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
 
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setCameraStream(stream);
       setIsCapturing(true);
 
-      if (videoRef?.current) {
-        // Attach stream to video and attempt to play
+      // Set video source
+      if (videoRef.current) {
         videoRef.current.srcObject = stream;
-
-        try {
-          // Await play promise — some browsers require this to actually start playback
-          // muted + playsInline help autoplay on mobile
-          await videoRef.current.play();
-          setIsVideoReady(true);
-        } catch (playError) {
-          // small retry after brief delay
-          console.warn('video.play() failed initially, retrying...', playError);
-          await new Promise(res => setTimeout(res, 250));
-          try {
-            await videoRef.current.play();
-            setIsVideoReady(true);
-          } catch (finalPlayError) {
-            console.error('Failed to start video playback:', finalPlayError);
-            setErrors(['Failed to start camera preview. Please try again.']);
-            // Cleanup
-            try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
-            setCameraStream(null);
-            setIsCapturing(false);
-            setIsVideoReady(false);
-          }
-        }
-      } else {
-        // No video element — still keep stream in state (rare)
-        setIsVideoReady(true);
       }
+
     } catch (error) {
       console.error('Camera error:', error);
       let errorMessage = 'Camera access denied. Please enable camera permissions to take photos.';
       
-      if (error && error.name === 'NotFoundError') {
+      if (error?.name === 'NotFoundError') {
         errorMessage = 'No camera found. Please ensure your device has a camera.';
-      } else if (error && error.name === 'NotAllowedError') {
+      } else if (error?.name === 'NotAllowedError') {
         errorMessage = 'Camera permission denied. Please allow camera access and try again.';
-      } else if (error && error.name === 'NotReadableError') {
+      } else if (error?.name === 'NotReadableError') {
         errorMessage = 'Camera is already in use by another application.';
       }
       
       setErrors([errorMessage]);
       setIsCapturing(false);
-      setIsVideoReady(false);
     }
   };
 
   const stopCamera = () => {
-    try {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => {
-          try { track.stop(); } catch (e) {}
-        });
-      }
-    } catch (e) {
-      console.warn('Error stopping tracks', e);
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
     }
-
-    try {
-      if (videoRef.current) {
-        try { videoRef.current.pause(); } catch (e) {}
-        try { videoRef.current.srcObject = null; } catch (e) {}
-      }
-    } catch (e) {}
-
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setCameraStream(null);
     setIsCapturing(false);
-    setIsVideoReady(false);
   };
 
   const switchCamera = async () => {
     const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
     setFacingMode(newFacingMode);
-
+    
     if (isCapturing) {
-      // Stop current stream before starting new one
       stopCamera();
-      // small delay to ensure tracks are released on some devices/browsers
+      // Small delay to ensure cleanup
       setTimeout(() => {
         startCamera();
-      }, 150);
+      }, 200);
     }
   };
 
   const capturePhoto = async () => {
-    if (!videoRef?.current || !cameraStream || !isVideoReady) {
-      setErrors(['Camera not ready. Please wait for video stream to initialize.']);
+    if (!videoRef.current || !cameraStream) {
+      setErrors(['Camera not ready. Please try again.']);
       return;
     }
 
@@ -348,23 +272,19 @@ const MediaUpload = ({
       // Get current location at the moment of capture
       const captureLocation = await getCurrentLocation();
       
-      const video = videoRef?.current;
-      const canvas = canvasRef?.current || document.createElement('canvas');
-      const ctx = canvas?.getContext('2d');
+      const video = videoRef.current;
+      const canvas = canvasRef.current || document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
 
-      if (!ctx) {
-        throw new Error('Could not get canvas context');
-      }
-
-      // Set canvas dimensions to match video, fallback to 1280x720
-      canvas.width = video?.videoWidth || 1280;
-      canvas.height = video?.videoHeight || 720;
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
 
       // Draw current video frame to canvas
-      ctx?.drawImage(video, 0, 0, canvas?.width, canvas?.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       // Convert canvas to blob
-      canvas?.toBlob(async (blob) => {
+      canvas.toBlob(async (blob) => {
         if (blob && uploadedFiles?.length < maxFiles) {
           try {
             // Create file from blob with timestamp
@@ -447,24 +367,13 @@ const MediaUpload = ({
         
         {/* Camera View */}
         <div className="relative bg-black rounded-lg overflow-hidden aspect-[4/3] max-h-[70vh]">
-        <video
-           ref={videoRef}
-           autoPlay
-           playsInline
-           muted
-           controls={false}
-          className="w-full h-full object-cover"
-           style={{ backgroundColor: 'black' }}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
           />
-          
-          {!isVideoReady && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-              <div className="text-center text-white">
-                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                <p className="text-sm">Starting camera...</p>
-              </div>
-            </div>
-          )}
           
           {/* Location indicator */}
           <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
@@ -486,7 +395,6 @@ const MediaUpload = ({
               iconName="RotateCcw"
               onClick={switchCamera}
               className="bg-black/70 backdrop-blur-sm text-white border-none hover:bg-black/80 p-2"
-              disabled={!isVideoReady}
             />
           </div>
 
@@ -507,10 +415,9 @@ const MediaUpload = ({
               size="lg"
               iconName="Camera"
               onClick={capturePhoto}
-              disabled={!isVideoReady}
               className="bg-primary hover:bg-primary/90 text-white px-8"
             >
-              {!isVideoReady ? 'Starting...' : 'Capture'}
+              Capture
             </Button>
           </div>
         </div>
