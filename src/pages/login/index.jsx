@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoginForm from './components/LoginForm';
 import LanguageSelector from './components/LanguageSelector';
-import TrustSignals from './components/TrustSignals';
+import TrustSignals from './components/Trustsignals';
 import OceanBackground from './components/OceanBackground';
 import OfflineStatusIndicator from '../../components/ui/OfflineStatusIndicator';
 import authService from '../../utils/authService';
