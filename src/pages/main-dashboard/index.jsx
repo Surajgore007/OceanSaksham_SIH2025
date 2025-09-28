@@ -8,7 +8,7 @@ import MapContainer from './components/MapContainer';
 import FilterPanel from './components/FilterPanel';
 import StatusOverview from './components/StatusOverview';
 import HotspotClusters from './components/HotspotClusters';
-import Icon from '../../components/AppIcon';
+import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
 import authService from '../../utils/authService';
 import realTimeService from '../../utils/realTimeService';
