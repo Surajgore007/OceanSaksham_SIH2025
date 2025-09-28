@@ -61,7 +61,7 @@ const LoginPage = () => {
 
   return (
     <OceanBackground>
-      <div className="min-h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         {/* Header with Language Selector and Status */}
         <div className="flex items-center justify-between p-4 lg:p-6">
           <OfflineStatusIndicator size="sm" />
@@ -69,7 +69,7 @@ const LoginPage = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="flex-1 flex items-center justify-center px-4 py-8 overflow-y-auto">
           <div className="w-full max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               {/* Left Side - Branding & Info */}

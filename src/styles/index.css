@@ -1,7 +1,9 @@
-body {
+html, body {
   margin: 0;
   padding: 0;
   font-family: Inter;
+  height: 100%;
+  overflow-x: hidden;
 }
 
 * {
@@ -9,4 +11,9 @@ body {
   line-height: normal;
   font-family: inherit;
   margin: unset;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
 }
