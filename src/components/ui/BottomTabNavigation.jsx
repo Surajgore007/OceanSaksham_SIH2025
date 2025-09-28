@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Icon from '../AppIcon';
+import Icon from '../Appicon';
 import Button from './Button';
 
 const BottomTabNavigation = ({ user = null, className = '' }) => {

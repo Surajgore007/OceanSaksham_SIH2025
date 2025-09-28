@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import locationService from '../../../utils/locationService'; // Import the centralized service

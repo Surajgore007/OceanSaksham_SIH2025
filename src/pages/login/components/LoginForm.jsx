@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 
 const LoginForm = ({ onLogin, isLoading, error }) => {
   const navigate = useNavigate();

@@ -1,5 +1,5 @@
 import React from 'react';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 
 const SubmissionSummary = ({ 

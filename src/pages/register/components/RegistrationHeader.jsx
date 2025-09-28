@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 
 
 const RegistrationHeader = () => {

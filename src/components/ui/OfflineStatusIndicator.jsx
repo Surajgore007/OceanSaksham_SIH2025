@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Icon from '../AppIcon';
+import Icon from '../Appicon';
 
 const OfflineStatusIndicator = ({ 
   className = '',

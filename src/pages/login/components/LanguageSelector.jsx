@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Select from '../../../components/ui/Select';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 
 const LanguageSelector = ({ className = '' }) => {
   const [currentLanguage, setCurrentLanguage] = useState('en');

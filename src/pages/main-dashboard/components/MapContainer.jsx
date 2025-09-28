@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Icon from '../../../components/AppIcon';
+import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import locationService from '../../../utils/locationService';
 import realTimeService from '../../../utils/realTimeService';
