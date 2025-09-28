@@ -172,8 +172,8 @@ const MainDashboard = () => {
         <Header user={user} onLogout={handleLogout} />
 
         {/* Main Content */}
-        <main className="pt-16 pb-20 md:pb-6 h-[calc(100vh-4rem)]">
-          <div className="h-full flex">
+        <main className="pt-16 pb-20 md:pb-6">
+          <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex">
             {/* Desktop Filter Panel */}
             <div className="hidden md:block">
               <FilterPanel
