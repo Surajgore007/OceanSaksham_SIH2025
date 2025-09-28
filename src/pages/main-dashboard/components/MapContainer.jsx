@@ -15,6 +15,7 @@ const MapContainer = ({
   const mapRef = useRef(null);
   const googleMapRef = useRef(null);
   const markersRef = useRef([]);
+  const circlesRef = useRef([]); // <-- added: keep hazard area circles
   const userLocationMarkerRef = useRef(null);
   const [userLocation, setUserLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState({ lat: 19.0760, lng: 72.8777 });
@@ -188,6 +189,16 @@ const MapContainer = ({
       unsubscribeNewHazard?.();
       locationUnsubscribe?.();
       realTimeService?.stop();
+
+      // cleanup circles and markers on unmount
+      if (markersRef.current.length) {
+        markersRef.current.forEach(m => m.setMap(null));
+        markersRef.current = [];
+      }
+      if (circlesRef.current.length) {
+        circlesRef.current.forEach(c => c.setMap(null));
+        circlesRef.current = [];
+      }
     };
   }, []);
 
@@ -230,7 +241,7 @@ const MapContainer = ({
           source: 'citizen',
           verificationStatus: report?.verificationStatus || 'verified'
         })),
-      
+
       // Official hazards (hotspots) - always include as they're pre-verified
       ...officialHazards?.map(hazard => ({
         ...hazard,
@@ -362,12 +373,26 @@ const MapContainer = ({
     });
     markersRef.current = [];
 
+    // Clear existing circles (hazard areas)
+    if (circlesRef.current && circlesRef.current.length) {
+      circlesRef.current.forEach(circle => circle.setMap(null));
+      circlesRef.current = [];
+    }
+
     // Severity color mapping for reference
     const severityColors = {
       low: '#22c55e',      // Green
       medium: '#f59e0b',   // Orange/Amber
       high: '#ef4444',     // Red
       critical: '#dc2626'  // Dark Red
+    };
+
+    // optional radius by severity
+    const severityRadius = {
+      low: 300,
+      medium: 700,
+      high: 1500,
+      critical: 3000
     };
 
     const filteredHazards = getFilteredHazards();
@@ -380,6 +405,27 @@ const MapContainer = ({
         icon: createHazardIcon(hazard),
         optimized: false
       });
+
+      // draw hazard circle (bigger than user marker)
+      try {
+        const radiusMeters = hazard.radius || severityRadius[hazard.severity] || 1000;
+
+        const circle = new google.maps.Circle({
+          strokeColor: severityColors[hazard?.severity] || severityColors.high,
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+          fillColor: severityColors[hazard?.severity] || severityColors.high,
+          fillOpacity: 0.12,
+          map: googleMapRef.current,
+          center: { lat: hazard.lat, lng: hazard.lng },
+          radius: radiusMeters,
+          zIndex: 400 // lower than user's marker (user uses 1000)
+        });
+
+        circlesRef.current.push(circle);
+      } catch (err) {
+        console.warn('Failed to draw hazard circle:', err);
+      }
 
       // Clean info window for verified hazards - no source distinction
       const infoWindowContent = `
