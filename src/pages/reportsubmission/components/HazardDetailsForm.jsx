@@ -97,7 +97,7 @@ const HazardDetailsForm = ({
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
-            Description <span className="text-error">*</span>
+           Description
           </label>
           <div className="relative">
             <textarea
@@ -112,7 +112,6 @@ const HazardDetailsForm = ({
                 }
               `}
               maxLength={maxDescriptionLength}
-              required
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
               {remainingChars} characters remaining
@@ -126,7 +125,7 @@ const HazardDetailsForm = ({
         {/* Character Count Indicator */}
         <div className="flex justify-between items-center text-xs">
           <span className="text-muted-foreground">
-            Minimum 20 characters recommended
+            Optional - Add details if available
           </span>
           <div className={`
             px-2 py-1 rounded-full text-xs font-medium

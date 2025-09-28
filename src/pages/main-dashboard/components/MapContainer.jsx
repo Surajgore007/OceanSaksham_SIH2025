@@ -207,7 +207,117 @@ const MapContainer = ({
     const userReports = JSON.parse(localStorage.getItem('userReports') || '[]');
     const officialHazards = JSON.parse(localStorage.getItem('hazardReports') || '[]');
     
+    // Demo data for demonstration purposes - India's coastal areas
+    const demoHazards = [
+      {
+        id: 'demo-1',
+        type: 'tsunami',
+        severity: 'high',
+        lat: 19.0760,
+        lng: 72.8777,
+        location: 'Gateway of India, Mumbai Coast',
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+        description: 'High wave activity detected near Mumbai coast. Authorities monitoring situation.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-2',
+        type: 'flooding',
+        severity: 'medium',
+        lat: 12.9716,
+        lng: 77.5946,
+        location: 'Chennai Coast, Tamil Nadu',
+        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
+        description: 'Coastal flooding reported in Chennai coastal area due to high tide.',
+        source: 'citizen',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-3',
+        type: 'high_waves',
+        severity: 'critical',
+        lat: 8.5241,
+        lng: 76.9366,
+        location: 'Kochi Coast, Kerala',
+        timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
+        description: 'Dangerous high waves observed at Kochi coast. Public advised to stay away.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-4',
+        type: 'storm_surge',
+        severity: 'high',
+        lat: 22.5726,
+        lng: 88.3639,
+        location: 'Kolkata Coast, West Bengal',
+        timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
+        description: 'Storm surge warning issued for Kolkata coastal area.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-5',
+        type: 'flooding',
+        severity: 'low',
+        lat: 15.2993,
+        lng: 74.1240,
+        location: 'Goa Coast',
+        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+        description: 'Minor coastal flooding in Goa area due to heavy rainfall.',
+        source: 'citizen',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-6',
+        type: 'tsunami',
+        severity: 'critical',
+        lat: 19.0400,
+        lng: 72.8200,
+        location: 'Versova Beach, Mumbai Coast',
+        timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+        description: 'CRITICAL: Tsunami warning issued for Versova Beach area. Immediate evacuation advised.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-7',
+        type: 'storm_surge',
+        severity: 'critical',
+        lat: 19.1000,
+        lng: 72.9000,
+        location: 'Powai Lake Coastal Area, Mumbai',
+        timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+        description: 'CRITICAL: Severe storm surge detected near Powai coastal area. High alert issued.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      },
+      {
+        id: 'demo-8',
+        type: 'high_waves',
+        severity: 'critical',
+        lat: 19.0200,
+        lng: 72.8500,
+        location: 'Aksa Beach, Mumbai Coast',
+        timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+        description: 'CRITICAL: Extremely dangerous high waves at Aksa Beach. Beach closed immediately.',
+        source: 'official',
+        status: 'verified',
+        verificationStatus: 'verified'
+      }
+    ];
+    
     const combinedHazards = [
+      // Demo hazards for demonstration
+      ...demoHazards,
       // Only include user reports that are VERIFIED and NOT REJECTED
       ...userReports
         ?.filter(report => {

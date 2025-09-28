@@ -99,8 +99,80 @@ const OfficialConsole = () => {
     const pendingReports = localDb.getCollection('pendingVerification') || [];
     const userReports = localDb.getCollection('userReports') || [];
 
+    // Demo data for demonstration purposes - Critical alerts near Mumbai coast
+    const demoReports = [
+      {
+        id: 'demo-6',
+        timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+        hazardType: 'tsunami',
+        severity: 'critical',
+        status: 'verified',
+        verificationStatus: 'verified',
+        location: {
+          address: 'Versova Beach, Mumbai Coast',
+          coordinates: { latitude: 19.0400, longitude: 72.8200 }
+        },
+        description: 'CRITICAL: Tsunami warning issued for Versova Beach area. Immediate evacuation advised.',
+        reporter: {
+          name: 'Mumbai Coastal Authority',
+          phone: '+91-22-1234-5678',
+          email: 'coastal@mumbai.gov.in'
+        },
+        media: [],
+        verifiedAt: new Date(Date.now() - 25 * 60 * 1000),
+        verifiedBy: 'Dr. Priya Sharma',
+        officialNotes: 'Verified by Mumbai Coastal Authority. Immediate action required.'
+      },
+      {
+        id: 'demo-7',
+        timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+        hazardType: 'storm_surge',
+        severity: 'critical',
+        status: 'verified',
+        verificationStatus: 'verified',
+        location: {
+          address: 'Powai Lake Coastal Area, Mumbai',
+          coordinates: { latitude: 19.1000, longitude: 72.9000 }
+        },
+        description: 'CRITICAL: Severe storm surge detected near Powai coastal area. High alert issued.',
+        reporter: {
+          name: 'Mumbai Weather Station',
+          phone: '+91-22-2345-6789',
+          email: 'weather@mumbai.gov.in'
+        },
+        media: [],
+        verifiedAt: new Date(Date.now() - 40 * 60 * 1000),
+        verifiedBy: 'Dr. Priya Sharma',
+        officialNotes: 'Confirmed by meteorological department. High alert status.'
+      },
+      {
+        id: 'demo-8',
+        timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+        hazardType: 'high_waves',
+        severity: 'critical',
+        status: 'verified',
+        verificationStatus: 'verified',
+        location: {
+          address: 'Aksa Beach, Mumbai Coast',
+          coordinates: { latitude: 19.0200, longitude: 72.8500 }
+        },
+        description: 'CRITICAL: Extremely dangerous high waves at Aksa Beach. Beach closed immediately.',
+        reporter: {
+          name: 'Mumbai Beach Authority',
+          phone: '+91-22-3456-7890',
+          email: 'beach@mumbai.gov.in'
+        },
+        media: [],
+        verifiedAt: new Date(Date.now() - 10 * 60 * 1000),
+        verifiedBy: 'Dr. Priya Sharma',
+        officialNotes: 'Beach closure implemented. Public safety ensured.'
+      }
+    ];
+
     // Combine pending reports from different sources
     const allReports = [
+      // Demo reports for demonstration
+      ...demoReports,
       // Direct pending reports
       ...pendingReports.map(report => ({
         ...report,

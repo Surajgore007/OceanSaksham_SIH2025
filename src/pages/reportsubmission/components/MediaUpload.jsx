@@ -16,6 +16,9 @@ const MediaUpload = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment'); // 'user' for front, 'environment' for back
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
   
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -30,24 +33,27 @@ const MediaUpload = ({
     'video/quicktime': '.mov'
   };
 
-  // Get user location on component mount
+  // Cleanup camera stream on unmount
   useEffect(() => {
-    getCurrentLocation();
     return () => {
-      // Cleanup camera stream on unmount
       if (cameraStream) {
         cameraStream?.getTracks()?.forEach(track => track?.stop());
       }
     };
-  }, []);
+  }, [cameraStream]);
 
   const getCurrentLocation = async () => {
+    setIsLocationLoading(true);
     try {
       const location = await locationService?.getCurrentPosition();
       setUserLocation(location);
+      return location;
     } catch (error) {
       console.warn('Could not get location:', error);
       setUserLocation(null);
+      return null;
+    } finally {
+      setIsLocationLoading(false);
     }
   };
 
@@ -74,19 +80,9 @@ const MediaUpload = ({
   };
 
   const processGeotaggedFile = async (file, location = null) => {
-    const currentLocation = location || userLocation;
+    // Get fresh location for each file if not provided
+    const currentLocation = location || await getCurrentLocation();
     
-    if (!currentLocation) {
-      // Try to get location again
-      try {
-        const newLocation = await locationService?.getCurrentPosition();
-        setUserLocation(newLocation);
-        return await processGeotaggedFile(file, newLocation);
-      } catch (error) {
-        console.warn('No location available for geotagging');
-      }
-    }
-
     // Get address if location is available
     let address = null;
     if (currentLocation) {
@@ -194,28 +190,53 @@ const MediaUpload = ({
   const startCamera = async () => {
     try {
       setErrors([]);
-      const stream = await navigator.mediaDevices?.getUserMedia({
+      setIsVideoReady(false);
+      
+      // Stop any existing stream
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
         video: { 
-          facingMode: 'environment', // Use back camera
+          facingMode: facingMode,
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         }
-      });
+      };
 
+      const stream = await navigator.mediaDevices?.getUserMedia(constraints);
       setCameraStream(stream);
       setIsCapturing(true);
       
       if (videoRef?.current) {
         videoRef.current.srcObject = stream;
+        
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().then(() => {
+            setIsVideoReady(true);
+          }).catch(error => {
+            console.error('Video play error:', error);
+            setErrors(['Failed to start video stream. Please try again.']);
+          });
+        };
       }
 
-      // Get current location for geotagging
-      if (!userLocation) {
-        await getCurrentLocation();
-      }
     } catch (error) {
       console.error('Camera error:', error);
-      setErrors(['Camera access denied. Please enable camera permissions to take geotagged photos.']);
+      let errorMessage = 'Camera access denied. Please enable camera permissions to take photos.';
+      
+      if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found. Please ensure your device has a camera.';
+      } else if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.';
+      }
+      
+      setErrors([errorMessage]);
+      setIsCapturing(false);
     }
   };
 
@@ -225,19 +246,40 @@ const MediaUpload = ({
       setCameraStream(null);
     }
     setIsCapturing(false);
+    setIsVideoReady(false);
+  };
+
+  const switchCamera = async () => {
+    const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newFacingMode);
+    
+    if (isCapturing) {
+      // Restart camera with new facing mode
+      await startCamera();
+    }
   };
 
   const capturePhoto = async () => {
-    if (!videoRef?.current || !cameraStream) return;
+    if (!videoRef?.current || !cameraStream || !isVideoReady) {
+      setErrors(['Camera not ready. Please wait for video stream to initialize.']);
+      return;
+    }
 
     try {
+      // Get current location at the moment of capture
+      const captureLocation = await getCurrentLocation();
+      
       const video = videoRef?.current;
       const canvas = canvasRef?.current || document.createElement('canvas');
       const ctx = canvas?.getContext('2d');
 
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+
       // Set canvas dimensions to match video
-      canvas.width = video?.videoWidth;
-      canvas.height = video?.videoHeight;
+      canvas.width = video?.videoWidth || 640;
+      canvas.height = video?.videoHeight || 480;
 
       // Draw current video frame to canvas
       ctx?.drawImage(video, 0, 0, canvas?.width, canvas?.height);
@@ -245,15 +287,26 @@ const MediaUpload = ({
       // Convert canvas to blob
       canvas?.toBlob(async (blob) => {
         if (blob && uploadedFiles?.length < maxFiles) {
-          // Process the captured photo with geotag
-          const geotaggedPhoto = await processGeotaggedFile(
-            new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
-          );
+          try {
+            // Create file from blob with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileName = `camera_capture_${timestamp}.jpg`;
+            const file = new File([blob], fileName, { type: 'image/jpeg' });
 
-          onFilesChange([...uploadedFiles, geotaggedPhoto]);
-          stopCamera();
+            // Process the captured photo with current geotag
+            const geotaggedPhoto = await processGeotaggedFile(file, captureLocation);
+
+            onFilesChange([...uploadedFiles, geotaggedPhoto]);
+            stopCamera();
+          } catch (error) {
+            console.error('Error processing captured photo:', error);
+            setErrors(['Failed to process captured photo. Please try again.']);
+          }
+        } else if (uploadedFiles?.length >= maxFiles) {
+          setErrors([`Maximum ${maxFiles} files allowed.`]);
         }
-      }, 'image/jpeg', 0.8);
+      }, 'image/jpeg', 0.85);
+      
     } catch (error) {
       console.error('Photo capture error:', error);
       setErrors(['Failed to capture photo. Please try again.']);
@@ -303,17 +356,18 @@ const MediaUpload = ({
 
   if (isCapturing) {
     return (
-      <div className={`space-y-6 ${className}`}>
-        <div className="text-center mb-6">
-          <h2 className="text-xl font-semibold text-foreground mb-2">
+      <div className={`space-y-4 ${className}`}>
+        <div className="text-center mb-4">
+          <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2">
             Camera Capture
           </h2>
           <p className="text-sm text-muted-foreground">
             Take a geotagged photo for your report
           </p>
         </div>
+        
         {/* Camera View */}
-        <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+        <div className="relative bg-black rounded-lg overflow-hidden aspect-[4/3] max-h-[70vh]">
           <video
             ref={videoRef}
             autoPlay
@@ -322,76 +376,98 @@ const MediaUpload = ({
             className="w-full h-full object-cover"
           />
           
-          {/* Location indicator */}
-          {userLocation && (
-            <div className="absolute top-4 left-4 flex items-center space-x-1 px-2 py-1 bg-black/70 rounded text-white text-xs">
-              <Icon name="MapPin" size={12} />
-              <span>GPS: {userLocation?.accuracy?.toFixed(0)}m</span>
+          {!isVideoReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+              <div className="text-center text-white">
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-sm">Starting camera...</p>
+              </div>
             </div>
           )}
+          
+          {/* Location indicator */}
+          <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
+            <div className="flex items-center space-x-1 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full text-white text-xs">
+              <Icon name="MapPin" size={12} />
+              {isLocationLoading ? (
+                <span>Getting GPS...</span>
+              ) : userLocation ? (
+                <span>GPS: ±{userLocation?.accuracy?.toFixed(0)}m</span>
+              ) : (
+                <span className="text-yellow-300">No GPS</span>
+              )}
+            </div>
+            
+            {/* Camera switch button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              iconName="RotateCcw"
+              onClick={switchCamera}
+              className="bg-black/70 backdrop-blur-sm text-white border-none hover:bg-black/80 p-2"
+              disabled={!isVideoReady}
+            />
+          </div>
 
           {/* Controls */}
-          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center space-x-4">
+          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center space-x-4 px-4">
             <Button
               variant="outline"
               size="sm"
               iconName="X"
               onClick={stopCamera}
-              className="bg-black/50 text-white border-white/20"
+              className="bg-black/70 backdrop-blur-sm text-white border-white/30 hover:bg-black/80"
             >
               Cancel
             </Button>
+            
             <Button
               variant="default"
               size="lg"
               iconName="Camera"
               onClick={capturePhoto}
-              disabled={!userLocation}
-              className="bg-primary text-white"
+              disabled={!isVideoReady}
+              className="bg-primary hover:bg-primary/90 text-white px-8"
             >
-              {!userLocation ? 'Getting Location...' : 'Capture'}
+              {!isVideoReady ? 'Starting...' : 'Capture'}
             </Button>
           </div>
         </div>
+        
         {/* Hidden canvas for photo processing */}
         <canvas ref={canvasRef} style={{ display: 'none' }} />
+        
+        {/* Camera info */}
+        <div className="text-center text-xs text-muted-foreground">
+          Using {facingMode === 'environment' ? 'back' : 'front'} camera • Location will be captured at the moment you take the photo
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-semibold text-foreground mb-2">
+    <div className={`space-y-4 md:space-y-6 ${className}`}>
+      <div className="text-center mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2">
           Upload Geotagged Media
         </h2>
         <p className="text-sm text-muted-foreground">
           Add photos or videos with location data to support your report
         </p>
-        {userLocation ? (
-          <div className="flex items-center justify-center space-x-1 mt-2 text-success text-sm">
-            <Icon name="MapPin" size={14} />
-            <span>Location access enabled</span>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center space-x-1 mt-2 text-warning text-sm">
-            <Icon name="AlertTriangle" size={14} />
-            <span>Location access needed for geotagging</span>
-          </div>
-        )}
       </div>
+      
       {/* Camera and File Upload Buttons */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6">
         <Button
           variant="outline"
           iconName="Camera"
           iconPosition="left"
           onClick={startCamera}
           disabled={uploadedFiles?.length >= maxFiles}
-          className="aspect-square flex-col h-24"
+          className="aspect-square flex-col h-20 md:h-24 text-xs md:text-sm"
         >
-          <span className="text-sm mt-1">Take Photo</span>
-          <span className="text-xs text-muted-foreground">Geotagged</span>
+          <span className="mt-1">Take Photo</span>
+          <span className="text-xs text-muted-foreground">Live Geotag</span>
         </Button>
         
         <Button
@@ -400,19 +476,20 @@ const MediaUpload = ({
           iconPosition="left"
           onClick={openFileDialog}
           disabled={uploadedFiles?.length >= maxFiles}
-          className="aspect-square flex-col h-24"
+          className="aspect-square flex-col h-20 md:h-24 text-xs md:text-sm"
         >
-          <span className="text-sm mt-1">Upload Files</span>
+          <span className="mt-1">Upload Files</span>
           <span className="text-xs text-muted-foreground">Auto-geotag</span>
         </Button>
       </div>
+      
       {/* Upload Area */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200
+          relative border-2 border-dashed rounded-lg p-4 md:p-6 text-center transition-all duration-200
           ${isDragOver 
             ? 'border-primary bg-primary/5 scale-[1.02]' 
             : 'border-border hover:border-primary/50 hover:bg-muted/30'
@@ -429,15 +506,15 @@ const MediaUpload = ({
         />
 
         <div className="space-y-3">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-            <Icon name="Upload" size={24} className="text-primary" />
+          <div className="mx-auto w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center">
+            <Icon name="Upload" size={20} className="text-primary" />
           </div>
 
           <div>
-            <h3 className="font-medium text-foreground mb-1">
+            <h3 className="font-medium text-foreground mb-1 text-sm md:text-base">
               {isDragOver ? "Drop files here" : "Or drag and drop files"}
             </h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground">
               Files will be automatically geotagged with your current location
             </p>
           </div>
@@ -449,23 +526,25 @@ const MediaUpload = ({
           </div>
         </div>
       </div>
+      
       {/* Error Messages */}
       {errors?.length > 0 && (
         <div className="space-y-2">
           {errors?.map((error, index) => (
             <div key={index} className="p-3 bg-error/10 border border-error/20 rounded-lg">
               <div className="flex items-start space-x-2">
-                <Icon name="AlertCircle" size={16} className="text-error mt-0.5" />
+                <Icon name="AlertCircle" size={16} className="text-error mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-error">{error}</p>
               </div>
             </div>
           ))}
         </div>
       )}
+      
       {/* Upload Progress */}
       {Object.keys(uploadProgress)?.length > 0 && (
         <div className="space-y-3">
-          <h4 className="font-medium text-foreground">Processing Files...</h4>
+          <h4 className="font-medium text-foreground text-sm">Processing Files...</h4>
           {Object.entries(uploadProgress)?.map(([fileId, progress]) => (
             <div key={fileId} className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -482,16 +561,17 @@ const MediaUpload = ({
           ))}
         </div>
       )}
+      
       {/* Uploaded Files */}
       {uploadedFiles?.length > 0 && (
         <div className="space-y-4">
-          <h4 className="font-medium text-foreground">Uploaded Files ({uploadedFiles?.length})</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <h4 className="font-medium text-foreground text-sm">Uploaded Files ({uploadedFiles?.length})</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             {uploadedFiles?.map((file) => (
-              <div key={file?.id} className="bg-card border border-border rounded-lg p-4">
+              <div key={file?.id} className="bg-card border border-border rounded-lg p-3 md:p-4">
                 <div className="flex items-start space-x-3">
                   {/* File Preview */}
-                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 relative">
+                  <div className="w-14 h-14 md:w-16 md:h-16 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 relative">
                     {file?.preview ? (
                       <img 
                         src={file?.preview} 
@@ -501,7 +581,7 @@ const MediaUpload = ({
                     ) : (
                       <Icon 
                         name={file?.type?.startsWith('video/') ? "Video" : "File"} 
-                        size={20} 
+                        size={18} 
                         className="text-muted-foreground" 
                       />
                     )}
@@ -509,7 +589,7 @@ const MediaUpload = ({
                     {/* Geotag indicator */}
                     {file?.geotagged && (
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full flex items-center justify-center">
-                        <Icon name="MapPin" size={10} color="white" />
+                        <Icon name="MapPin" size={10} className="text-white" />
                       </div>
                     )}
                   </div>
@@ -526,7 +606,7 @@ const MediaUpload = ({
                     
                     {/* Location info */}
                     {file?.geotagged && file?.address && (
-                      <p className="text-xs text-success mt-1">
+                      <p className="text-xs text-success mt-1 truncate">
                         📍 {file?.address?.address}
                       </p>
                     )}
@@ -544,7 +624,7 @@ const MediaUpload = ({
                     size="icon"
                     onClick={() => removeFile(file?.id)}
                     iconName="X"
-                    className="text-muted-foreground hover:text-error w-6 h-6"
+                    className="text-muted-foreground hover:text-error w-6 h-6 flex-shrink-0"
                   />
                 </div>
               </div>
@@ -552,16 +632,17 @@ const MediaUpload = ({
           </div>
         </div>
       )}
+      
       {/* Media Guidelines */}
-      <div className="p-4 bg-muted/30 border border-border rounded-lg">
+      <div className="p-3 md:p-4 bg-muted/30 border border-border rounded-lg">
         <div className="flex items-start space-x-3">
-          <Icon name="Info" size={20} className="text-primary mt-0.5" />
+          <Icon name="Info" size={18} className="text-primary mt-0.5 flex-shrink-0" />
           <div>
-            <h4 className="font-medium text-foreground mb-2">Geotagged Media Guidelines</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Photos and videos are automatically tagged with your current location</li>
+            <h4 className="font-medium text-foreground mb-2 text-sm">Geotagged Media Guidelines</h4>
+            <ul className="text-xs md:text-sm text-muted-foreground space-y-1">
+              <li>• Photos taken with camera are geotagged at the moment of capture</li>
+              <li>• Uploaded files are tagged with your current location</li>
               <li>• Location data helps officials verify and respond to reports</li>
-              <li>• Ensure location services are enabled for accurate geotagging</li>
               <li>• All location data is encrypted and used only for official purposes</li>
               <li>• Take clear photos showing hazard conditions and surroundings</li>
             </ul>

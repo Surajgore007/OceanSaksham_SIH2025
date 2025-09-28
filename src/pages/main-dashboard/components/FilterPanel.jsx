@@ -79,25 +79,24 @@ const FilterPanel = ({
   return (
     <>
       {/* Mobile Filter Button */}
-      <div className="md:hidden fixed top-20 left-4 z-50">
+      <div className="md:hidden fixed top-24 left-3 z-50">
         <Button
           variant="default"
-          size="sm"
+          size="icon"
           iconName="Filter"
-          iconPosition="left"
           onClick={onToggle}
-          className="bg-card shadow-modal"
+          className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 text-gray-800 w-10 h-10"
         >
-          Filters
           {hasActiveFilters && (
-            <div className="ml-2 w-2 h-2 bg-accent rounded-full" />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
           )}
         </Button>
       </div>
+      
       {/* Filter Panel */}
       <div className={`
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        fixed md:relative top-0 left-0 h-full md:h-auto w-80 md:w-72
+        fixed md:relative top-0 left-0 h-full md:h-auto w-72 md:w-64 lg:w-72
         bg-card border-r md:border border-border shadow-modal md:shadow-card
         transition-transform duration-300 ease-in-out z-40 md:z-auto
         ${className}
@@ -112,13 +111,13 @@ const FilterPanel = ({
 
         <div className="flex flex-col h-full md:h-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center justify-between p-3 md:p-4 border-b border-border flex-shrink-0">
             <div className="flex items-center space-x-2">
-              <Icon name="Filter" size={20} className="text-primary" />
-              <h3 className="font-semibold text-foreground">Filters</h3>
+              <Icon name="Filter" size={18} className="text-primary" />
+              <h3 className="font-semibold text-foreground text-sm md:text-base">Filters</h3>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap">
                 {resultCount} results
               </span>
               <Button
@@ -126,30 +125,30 @@ const FilterPanel = ({
                 size="icon"
                 iconName="X"
                 onClick={onToggle}
-                className="md:hidden"
+                className="md:hidden w-8 h-8"
               />
             </div>
           </div>
 
           {/* Filter Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
             {/* Hazard Types */}
             <div>
-              <h4 className="font-medium text-foreground mb-3">Hazard Types</h4>
-              <div className="space-y-2">
+              <h4 className="font-medium text-foreground mb-2 md:mb-3 text-sm">Hazard Types</h4>
+              <div className="space-y-1.5 md:space-y-2">
                 {hazardTypes?.map((type) => (
                   <div key={type?.id} className="flex items-center justify-between">
                     <Checkbox
                       label={
                         <div className="flex items-center space-x-2">
-                          <Icon name={type?.icon} size={16} className="text-muted-foreground" />
-                          <span>{type?.label}</span>
+                          <Icon name={type?.icon} size={14} className="text-muted-foreground" />
+                          <span className="text-sm">{type?.label}</span>
                         </div>
                       }
                       checked={localFilters?.types?.includes(type?.id)}
                       onChange={(e) => handleTypeChange(type?.id, e?.target?.checked)}
                     />
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                       {type?.count}
                     </span>
                   </div>
@@ -159,8 +158,8 @@ const FilterPanel = ({
 
             {/* Severity Levels */}
             <div>
-              <h4 className="font-medium text-foreground mb-3">Severity</h4>
-              <div className="space-y-2">
+              <h4 className="font-medium text-foreground mb-2 md:mb-3 text-sm">Severity</h4>
+              <div className="space-y-1.5 md:space-y-2">
                 {severityLevels?.map((level) => (
                   <div key={level?.id} className="flex items-center justify-between">
                     <Checkbox
@@ -171,13 +170,13 @@ const FilterPanel = ({
                             level?.id === 'high' ? 'bg-warning' :
                             level?.id === 'medium'? 'bg-secondary' : 'bg-success'
                           }`} />
-                          <span className={level?.color}>{level?.label}</span>
+                          <span className={`${level?.color} text-sm`}>{level?.label}</span>
                         </div>
                       }
                       checked={localFilters?.severity?.includes(level?.id)}
                       onChange={(e) => handleSeverityChange(level?.id, e?.target?.checked)}
                     />
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                       {level?.count}
                     </span>
                   </div>
@@ -187,14 +186,14 @@ const FilterPanel = ({
 
             {/* Time Range */}
             <div>
-              <h4 className="font-medium text-foreground mb-3">Time Range</h4>
-              <div className="space-y-2">
+              <h4 className="font-medium text-foreground mb-2 md:mb-3 text-sm">Time Range</h4>
+              <div className="space-y-1 md:space-y-2">
                 {timeRanges?.map((range) => (
                   <button
                     key={range?.value}
                     onClick={() => handleTimeRangeChange(range?.value)}
                     className={`
-                      w-full text-left px-3 py-2 rounded-lg transition-smooth
+                      w-full text-left px-3 py-2 rounded-lg transition-smooth text-sm
                       ${localFilters?.timeRange === range?.value
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-muted text-foreground'
@@ -216,7 +215,7 @@ const FilterPanel = ({
                     variant="ghost"
                     size="sm"
                     onClick={clearAllFilters}
-                    className="text-xs"
+                    className="text-xs px-2 py-1 h-auto"
                   >
                     Clear All
                   </Button>

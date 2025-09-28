@@ -119,14 +119,12 @@ const ReportSubmission = () => {
           errors.location = 'Please select a location';
         }
         break;
-      case 3:
-        if (!formData?.description || formData?.description?.trim()?.length < 10) {
-          errors.description = 'Please provide a description (minimum 10 characters)';
-        }
-        if (!formData?.severity) {
-          errors.severity = 'Please select a severity level';
-        }
-        break;
+        case 3:
+          // Description is now optional - remove validation
+          if (!formData?.severity) {
+            errors.severity = 'Please select a severity level';
+          }
+          break;
       case 4:
         // Media is optional, no validation needed
         break;

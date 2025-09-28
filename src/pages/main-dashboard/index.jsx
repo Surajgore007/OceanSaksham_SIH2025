@@ -167,15 +167,15 @@ const MainDashboard = () => {
 
   return (
     <AuthenticationGuard user={user} requiredRoles={['citizen', 'official', 'analyst']}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         {/* Header with enhanced user management */}
         <Header user={user} onLogout={handleLogout} />
 
         {/* Main Content */}
-        <main className="pt-16 pb-6">
-          <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex">
+        <main className="flex-1 flex flex-col pt-14 md:pt-16 overflow-hidden">
+          <div className="flex flex-1 min-h-0">
             {/* Desktop Filter Panel */}
-            <div className="hidden md:block">
+            <div className="hidden md:block flex-shrink-0">
               <FilterPanel
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
@@ -196,19 +196,20 @@ const MainDashboard = () => {
             />
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
               {/* Enhanced View Toggle Bar */}
-              <div className="bg-card border-b border-border px-4 py-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1">
+              <div className="bg-card border-b border-border px-3 md:px-4 py-2 flex-shrink-0">
+                <div className="flex items-center justify-between max-w-full overflow-hidden">
+                  <div className="flex items-center space-x-1 min-w-0 flex-shrink">
                     <Button
                       variant={activeView === 'map' ? 'default' : 'ghost'}
                       size="sm"
                       iconName="Map"
                       iconPosition="left"
                       onClick={() => setActiveView('map')}
+                      className="text-xs md:text-sm whitespace-nowrap"
                     >
-                      Live Map
+                      <span className="hidden sm:inline">Live </span>Map
                     </Button>
                     <Button
                       variant={activeView === 'overview' ? 'default' : 'ghost'}
@@ -216,6 +217,7 @@ const MainDashboard = () => {
                       iconName="BarChart3"
                       iconPosition="left"
                       onClick={() => setActiveView('overview')}
+                      className="text-xs md:text-sm"
                     >
                       Overview
                     </Button>
@@ -225,12 +227,13 @@ const MainDashboard = () => {
                       iconName="MapPin"
                       iconPosition="left"
                       onClick={() => setActiveView('hotspots')}
+                      className="text-xs md:text-sm"
                     >
                       Hotspots
                     </Button>
                   </div>
 
-                  <div className="flex items-center space-x-3">
+                  <div className="hidden md:flex items-center space-x-3 flex-shrink-0">
                     {/* Real-time Status */}
                     <div className="flex items-center space-x-2">
                       <div className={`w-2 h-2 rounded-full ${
@@ -253,9 +256,23 @@ const MainDashboard = () => {
                     </Button>
 
                     {/* Last Update Time */}
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                       Updated: {new Date()?.toLocaleTimeString()}
                     </span>
+                  </div>
+
+                  {/* Mobile Status Indicator */}
+                  <div className="md:hidden flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      connectionStatus?.isConnected ? 'bg-success pulse-indicator' : 'bg-error'
+                    }`}></div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconName="RefreshCw"
+                      onClick={forceRefreshData}
+                      className="p-1"
+                    />
                   </div>
                 </div>
               </div>
@@ -273,13 +290,13 @@ const MainDashboard = () => {
                 )}
 
                 {activeView === 'overview' && (
-                  <div className="h-full overflow-y-auto p-4">
+                  <div className="h-full overflow-y-auto p-3 md:p-4">
                     <StatusOverview realTimeStats={realTimeStats} />
                   </div>
                 )}
 
                 {activeView === 'hotspots' && (
-                  <div className="h-full overflow-y-auto p-4">
+                  <div className="h-full overflow-y-auto p-3 md:p-4">
                     <HotspotClusters
                       onClusterClick={handleClusterClick}
                       onZoomToCluster={handleZoomToCluster}
@@ -294,7 +311,7 @@ const MainDashboard = () => {
           {selectedHazard && (
             <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
               <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedHazard(null)} />
-              <div className="relative bg-card border border-border rounded-lg shadow-modal max-w-md w-full max-h-[80vh] overflow-y-auto">
+              <div className="relative bg-card border border-border rounded-lg shadow-modal w-full max-w-md max-h-[90vh] overflow-y-auto mx-4">
                 <div className="flex items-center justify-between p-4 border-b border-border">
                   <h3 className="font-semibold text-foreground">Hazard Details</h3>
                   <div className="flex items-center space-x-2">
@@ -324,11 +341,11 @@ const MainDashboard = () => {
                         size={24} 
                       />
                     </div>
-                    <div>
-                      <h4 className="font-medium text-foreground capitalize">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-foreground capitalize truncate">
                         {selectedHazard?.type?.replace('_', ' ')}
                       </h4>
-                      <p className="text-sm text-muted-foreground">{selectedHazard?.location}</p>
+                      <p className="text-sm text-muted-foreground truncate">{selectedHazard?.location}</p>
                       <p className="text-xs text-primary">
                         {selectedHazard?.source === 'citizen' ? 'Citizen Report' : 'Official Report'}
                       </p>
@@ -363,7 +380,7 @@ const MainDashboard = () => {
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Coordinates:</span>
                       <span className="text-sm text-foreground font-mono">
-                        {selectedHazard?.lat?.toFixed(4)}, {selectedHazard?.lng?.toFixed(4)}
+                        {selectedHazard?.lat?.toFixed(4)}°, {selectedHazard?.lng?.toFixed(4)}°
                       </span>
                     </div>
                   </div>
@@ -408,7 +425,7 @@ const MainDashboard = () => {
                     {selectedHazard?.source === 'official' && (
                       <div className="p-3 bg-blue/10 border border-blue/20 rounded-lg">
                         <div className="flex items-start space-x-2">
-                          <Icon name="Lightbulb" size={14} className="text-blue mt-0.5" />
+                          <Icon name="Lightbulb" size={14} className="text-blue mt-0.5 flex-shrink-0" />
                           <div className="text-xs text-blue">
                             <p className="font-medium mb-1">Smart Quick Report</p>
                             <p>Click "Report Similar" to create a related incident report with location and hazard type pre-filled from this hotspot.</p>
@@ -424,7 +441,7 @@ const MainDashboard = () => {
 
           {/* Real-time Update Notifications */}
           {realTimeStats?.hasUpdates && (
-            <div className="fixed bottom-24 right-4 z-150 pointer-events-auto">
+            <div className="fixed bottom-20 md:bottom-6 right-4 z-150 pointer-events-auto">
               <div className="bg-primary text-white px-4 py-2 rounded-lg shadow-modal flex items-center space-x-2">
                 <div className="w-2 h-2 bg-white rounded-full pulse-indicator"></div>
                 <span className="text-sm">New updates available</span>
@@ -442,10 +459,10 @@ const MainDashboard = () => {
 
           {/* Quick Report Success Notification */}
           {quickReportData && (
-            <div className="fixed top-20 right-4 z-150 pointer-events-auto">
+            <div className="fixed top-16 md:top-20 right-4 z-150 pointer-events-auto">
               <div className="bg-success text-white px-4 py-3 rounded-lg shadow-modal max-w-sm">
                 <div className="flex items-start space-x-2">
-                  <Icon name="CheckCircle" size={16} className="mt-0.5" />
+                  <Icon name="CheckCircle" size={16} className="mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-sm">Quick Report Ready!</p>
                     <p className="text-xs opacity-90">Form pre-filled with hazard location and details.</p>

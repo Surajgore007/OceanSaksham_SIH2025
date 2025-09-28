@@ -63,22 +63,22 @@ const LoginPage = () => {
     <OceanBackground>
       <div className="min-h-screen flex flex-col">
         {/* Header with Language Selector and Status */}
-        <div className="flex items-center justify-between p-4 lg:p-6">
+        <div className="flex items-center justify-between p-3 md:p-4 lg:p-6">
           <OfflineStatusIndicator size="sm" />
           <LanguageSelector />
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="flex-1 flex items-center justify-center px-4 py-4 md:py-8">
           <div className="w-full max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
               {/* Left Side - Branding & Info */}
-              <div className="hidden lg:block space-y-8">
-                <div className="space-y-6">
+              <div className="hidden lg:block space-y-6 lg:space-y-8">
+                <div className="space-y-4 lg:space-y-6">
                   <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-20 h-20 bg-primary rounded-2xl">
+                    <div className="flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-primary rounded-2xl">
                       <svg
-                        className="w-12 h-12 text-white"
+                        className="w-10 h-10 lg:w-12 lg:h-12 text-white"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -90,25 +90,25 @@ const LoginPage = () => {
                       </svg>
                     </div>
                     <div>
-                      <h1 className="text-4xl font-bold text-primary">
+                      <h1 className="text-3xl lg:text-4xl font-bold text-primary">
                         OceanSaksham
                       </h1>
-                      <p className="text-lg text-muted-foreground">
+                      <p className="text-base lg:text-lg text-muted-foreground">
                         Coastal Hazard Management System
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold text-foreground">
+                  <div className="space-y-3 lg:space-y-4">
+                    <h2 className="text-xl lg:text-2xl font-semibold text-foreground">
                       Protecting India's Coastal Communities
                     </h2>
-                    <p className="text-muted-foreground leading-relaxed">
+                    <p className="text-muted-foreground leading-relaxed text-sm lg:text-base">
                       Real-time coastal hazard reporting and disaster management platform designed for Indian coastal communities. Report hazards, receive alerts, and stay informed about coastal safety.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-3 lg:gap-4 text-sm">
                     <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-success rounded-full"></div>
                       <span className="text-muted-foreground">Real-time Alerts</span>
@@ -133,7 +133,7 @@ const LoginPage = () => {
               </div>
 
               {/* Right Side - Login Form */}
-              <div className="w-full">
+              <div className="w-full max-w-md mx-auto lg:max-w-none">
                 <LoginForm
                   onLogin={handleLogin}
                   isLoading={isLoading}
@@ -144,7 +144,7 @@ const LoginPage = () => {
                 {locationStatus && (
                   <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
                     <div className="flex items-start space-x-2">
-                      <svg className="w-5 h-5 text-primary mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
@@ -152,13 +152,39 @@ const LoginPage = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Mobile Branding - visible only on mobile */}
+                <div className="lg:hidden mt-8 text-center space-y-4">
+                  <div className="flex items-center justify-center space-x-3">
+                    <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-xl">
+                      <svg
+                        className="w-7 h-7 text-white"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                        <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                        <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-bold text-primary">OceanSaksham</h1>
+                      <p className="text-sm text-muted-foreground">Coastal Hazard Management</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    Protecting India's coastal communities through real-time hazard reporting and disaster management.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 text-center">
+        <div className="p-3 md:p-4 text-center">
           <p className="text-xs text-muted-foreground">
             © {new Date()?.getFullYear()} OceanSaksham - Indian National Centre for Ocean Information Services (INCOIS)
           </p>
