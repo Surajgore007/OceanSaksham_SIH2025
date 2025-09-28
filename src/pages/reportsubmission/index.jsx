@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import BottomTabNavigation from '../../components/ui/BottomTabNavigation';
 import AuthenticationGuard from '../../components/ui/AuthenticationGuard';
-import Icon from '../../components/AppIcon';
+import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
 import localDb from '../../utils/localDb';
 import realTimeService from '../../utils/realTimeService';
