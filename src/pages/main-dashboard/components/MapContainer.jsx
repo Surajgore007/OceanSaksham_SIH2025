@@ -26,6 +26,7 @@ const MapContainer = ({
   const [zoom, setZoom] = useState(8);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapLoadTimeout, setMapLoadTimeout] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
 
   // Initialize Google Maps API
   useEffect(() => {
@@ -649,7 +650,7 @@ const MapContainer = ({
             size="icon"
             iconName="Plus"
             onClick={handleZoomIn}
-            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200"
+            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200 text-gray-800"
             disabled={!isMapLoaded}
           />
           <Button
@@ -657,7 +658,7 @@ const MapContainer = ({
             size="icon"
             iconName="Minus"
             onClick={handleZoomOut}
-            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200"
+            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200 text-gray-800"
             disabled={!isMapLoaded}
           />
         </div>
@@ -670,7 +671,7 @@ const MapContainer = ({
             iconName="MapPin"
             onClick={getCurrentLocation}
             loading={isLocationLoading}
-            className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200"
+            className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 text-gray-800"
             aria-label="Get current location"
             disabled={!isMapLoaded}
           />
@@ -690,51 +691,65 @@ const MapContainer = ({
           </div>
         )}
 
-        {/* Legend - Severity Based Color System */}
+        {/* Info Button */}
         <div className="absolute bottom-6 left-6 pointer-events-auto">
-          <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg p-4 shadow-lg max-w-xs">
-            <h4 className="font-semibold text-gray-800 mb-3 text-sm">Legend</h4>
-            
-            <div className="mb-3 p-2 rounded-lg border border-gray-100">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Verified Events:</span>
-                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                  {filteredHazards.length}
-                </span>
-              </div>
-            </div>
-            
-            <div className="space-y-2 mb-3">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Severity Levels</p>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#22c55e', opacity: 0.8}}></div>
-                  <span className="text-gray-600">Low Severity</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#f59e0b', opacity: 0.8}}></div>
-                  <span className="text-gray-600">Medium Severity</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#ef4444', opacity: 0.8}}></div>
-                  <span className="text-gray-600">High Severity</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#dc2626', opacity: 0.8}}></div>
-                  <span className="text-gray-600">Critical Severity</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-5 h-5 bg-blue-600 rounded-full border-2 border-white opacity-80"></div>
-                  <span className="text-gray-600">Your Location</span>
-                </div>
-              </div>
-            </div>
+          <Button
+            variant="default"
+            size="icon"
+            iconName="Info"
+            onClick={() => setShowLegend(!showLegend)}
+            className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 text-gray-800"
+            aria-label="Show map legend"
+          />
+        </div>
 
-            <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
-              All markers are verified hazard events. Color indicates severity level from green (low) to dark red (critical).
+        {/* Legend - Severity Based Color System */}
+        {showLegend && (
+          <div className="absolute bottom-6 left-16 pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg p-4 shadow-lg max-w-xs">
+              <h4 className="font-semibold text-gray-800 mb-3 text-sm">Legend</h4>
+              
+              <div className="mb-3 p-2 rounded-lg border border-gray-100">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Verified Events:</span>
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                    {filteredHazards.length}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-3">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Severity Levels</p>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 text-xs">
+                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#22c55e', opacity: 0.8}}></div>
+                    <span className="text-gray-600">Low Severity</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#f59e0b', opacity: 0.8}}></div>
+                    <span className="text-gray-600">Medium Severity</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#ef4444', opacity: 0.8}}></div>
+                    <span className="text-gray-600">High Severity</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#dc2626', opacity: 0.8}}></div>
+                    <span className="text-gray-600">Critical Severity</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <div className="w-5 h-5 bg-blue-600 rounded-full border-2 border-white opacity-80"></div>
+                    <span className="text-gray-600">Your Location</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
+                All markers are verified hazard events. Color indicates severity level from green (low) to dark red (critical).
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

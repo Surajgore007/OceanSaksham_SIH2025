@@ -34,7 +34,6 @@ const FilterPanel = ({
 
   const timeRanges = [
     { value: 1, label: 'Last Hour' },
-    { value: 6, label: 'Last 6 Hours' },
     { value: 12, label: 'Last 12 Hours' },
     { value: 24, label: 'Last 24 Hours' },
     { value: 72, label: 'Last 3 Days' },
