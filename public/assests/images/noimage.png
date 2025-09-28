@@ -1207,7 +1207,7 @@ Core Technical Stack:
 Next.js 14 with App Router, TypeScript, Tailwind CSS
 PWA with offline-first architecture using next-pwa
 IndexedDB for offline storage (use Dexie.js)
-Google Maps API (Key: AIzaSyChOSotKK9g6nVIZAdyYnpTxEXhg_Q0rF8)
+Google Maps API
 Zustand for state management
 React Hook Form for forms
 Lucide React for icons
