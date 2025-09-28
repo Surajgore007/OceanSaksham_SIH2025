@@ -199,9 +199,7 @@ const MediaUpload = ({
 
       const constraints = {
         video: { 
-          facingMode: facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          facingMode: facingMode
         }
       };
 
@@ -212,7 +210,7 @@ const MediaUpload = ({
       if (videoRef?.current) {
         videoRef.current.srcObject = stream;
         
-        // Wait for video to be ready
+        // Simplified event handler
         videoRef.current.onloadedmetadata = () => {
           videoRef.current.play().then(() => {
             setIsVideoReady(true);
@@ -254,8 +252,17 @@ const MediaUpload = ({
     setFacingMode(newFacingMode);
     
     if (isCapturing) {
-      // Restart camera with new facing mode
-      await startCamera();
+      // Stop current stream before starting new one
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+      setIsVideoReady(false);
+      
+      // Start with new facing mode after a short delay
+      setTimeout(() => {
+        startCamera();
+      }, 100);
     }
   };
 
@@ -368,12 +375,14 @@ const MediaUpload = ({
         
         {/* Camera View */}
         <div className="relative bg-black rounded-lg overflow-hidden aspect-[4/3] max-h-[70vh]">
-          <video
-            ref={videoRef}
-            autoPlay
+        <video
+           ref={videoRef}
+           autoPlay
             playsInline
-            muted
-            className="w-full h-full object-cover"
+           muted
+           controls={false}
+          className="w-full h-full object-cover"
+           style={{ backgroundColor: 'black' }}
           />
           
           {!isVideoReady && (
