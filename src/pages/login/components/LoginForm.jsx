@@ -182,6 +182,36 @@ const LoginForm = ({ onLogin, isLoading, error }) => {
           </div>
         </form>
 
+        {/* Demo Credentials */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start space-x-2 mb-3">
+            <Icon name="Info" size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+            <h3 className="text-sm font-semibold text-blue-800">Demo Credentials for Testing</h3>
+          </div>
+          <div className="space-y-2 text-xs">
+            <div className="grid grid-cols-1 gap-2">
+              <div className="bg-white rounded p-2 border border-blue-100">
+                <div className="font-medium text-blue-700 mb-1">Citizen Account:</div>
+                <div className="text-gray-600">Email: citizen@oceansaksham.gov.in</div>
+                <div className="text-gray-600">Phone: 9876543210</div>
+                <div className="text-gray-600">Password: citizen123</div>
+              </div>
+              <div className="bg-white rounded p-2 border border-blue-100">
+                <div className="font-medium text-blue-700 mb-1">Official Account:</div>
+                <div className="text-gray-600">Email: official@oceansaksham.gov.in</div>
+                <div className="text-gray-600">Phone: 9876543211</div>
+                <div className="text-gray-600">Password: official123</div>
+              </div>
+              <div className="bg-white rounded p-2 border border-blue-100">
+                <div className="font-medium text-blue-700 mb-1">Analyst Account:</div>
+                <div className="text-gray-600">Email: analyst@oceansaksham.gov.in</div>
+                <div className="text-gray-600">Phone: 9876543212</div>
+                <div className="text-gray-600">Password: analyst123</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Divider */}
         <div className="flex items-center my-6">
           <div className="flex-1 border-t border-border"></div>
