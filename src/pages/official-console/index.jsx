@@ -47,32 +47,42 @@ const OfficialConsole = () => {
   const [metrics, setMetrics] = useState({});
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  // Initialize data
+  // Initialize data and real-time live sync
   useEffect(() => {
-    loadData();
+    try {
+      realTimeService?.start();
+    } catch {}
+
+    loadData(true);
     
+    // Auto-sync polling every 3 seconds
+    const pollInterval = setInterval(() => {
+      loadData(false);
+    }, 3000);
+
     // Set up real-time listeners
-    const unsubscribePending = realTimeService?.subscribe('pendingVerification', (updatedReports) => {
-      loadData(); // Reload when new reports come in
+    const unsubscribePending = realTimeService?.subscribe('pendingVerification', () => {
+      loadData(false);
     });
 
-    const unsubscribeReports = realTimeService?.subscribe('userReports', (updatedReports) => {
-      loadData(); // Reload when reports are updated
+    const unsubscribeReports = realTimeService?.subscribe('userReports', () => {
+      loadData(false);
     });
 
     const unsubscribeSos = realTimeService?.subscribe('sosAlerts', () => {
-      loadData();
+      loadData(false);
     });
 
     return () => {
+      clearInterval(pollInterval);
       unsubscribePending?.();
       unsubscribeReports?.();
       unsubscribeSos?.();
     };
   }, []);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (showLoader = false) => {
+    if (showLoader) setIsLoading(true);
     
     try {
       // Fetch latest WhatsApp reports from local server or static sync feed
