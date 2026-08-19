@@ -5,77 +5,12 @@
  */
 
 const http = require('http');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
 const querystring = require('querystring');
 
 const PORT = process.env.PORT || 5000;
-const PUBLIC_FILE = path.join(__dirname, '..', 'public', 'whatsapp_reports.json');
 
 // In-memory conversation state
 const userSessions = new Map();
-
-// In-memory received reports list
-let receivedReports = [];
-
-try {
-  if (fs.existsSync(PUBLIC_FILE)) {
-    receivedReports = JSON.parse(fs.readFileSync(PUBLIC_FILE, 'utf8')) || [];
-  }
-} catch (e) {
-  receivedReports = [];
-}
-
-function saveReportsToFile() {
-  try {
-    fs.writeFileSync(PUBLIC_FILE, JSON.stringify(receivedReports, null, 2), 'utf8');
-  } catch (err) {}
-}
-
-// Background photo downloader
-function fetchPhotoBackground(reportId, mediaUrl) {
-  if (!mediaUrl || !reportId) return;
-  
-  function download(targetUrl, redirectCount = 0) {
-    if (redirectCount > 6) return;
-    try {
-      const urlObj = new URL(targetUrl);
-      const client = urlObj.protocol === 'https:' ? https : http;
-      client.get({ hostname: urlObj.hostname, path: urlObj.pathname + urlObj.search }, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return download(res.headers.location, redirectCount + 1);
-        }
-        if (res.statusCode === 200) {
-          const contentType = res.headers['content-type'] || 'image/jpeg';
-          const chunks = [];
-          res.on('data', chunk => chunks.push(chunk));
-          res.on('end', () => {
-            const buffer = Buffer.concat(chunks);
-            const dataUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
-            const idx = receivedReports.findIndex(r => r.id === reportId);
-            if (idx !== -1) {
-              const mediaItem = {
-                id: `wa_img_${Date.now()}`,
-                url: dataUrl,
-                preview: dataUrl,
-                dataUrl: dataUrl,
-                name: `whatsapp_${reportId}.jpg`,
-                type: 'image',
-                geotagged: true
-              };
-              receivedReports[idx].media = [mediaItem];
-              receivedReports[idx].mediaFiles = [mediaItem];
-              saveReportsToFile();
-              console.log(`📸 [Photo attached to report ${reportId}]`);
-            }
-          });
-        }
-      }).on('error', () => {});
-    } catch (e) {}
-  }
-  download(mediaUrl);
-}
 
 // Coastal Knowledge Base & Keywords
 const COASTAL_KB = [
@@ -98,7 +33,7 @@ const HAZARD_MAP = {
   '6': 'emergency_sos'
 };
 
-const WELCOME_MESSAGE = 
+const WELCOME_TEXT = 
 `🌊 *Welcome to OceanSaksham Coastal Reporting*
 _National Ocean Information Services (INCOIS)_
 
@@ -113,47 +48,6 @@ Please reply with the hazard number:
 
 _Or describe what you see in your own words._`;
 
-function recordReport(hazardType, locName, lat, lng, description, from, mediaUrl) {
-  const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
-  const nowIso = new Date().toISOString();
-  const phone = (from || '').replace('whatsapp:', '');
-
-  const report = {
-    id: `wa_${Date.now()}`,
-    hazardType: hazardType || 'high_waves',
-    type: hazardType || 'high_waves',
-    severity: hazardType === 'tsunami' ? 'critical' : (hazardType === 'storm_surge' ? 'high' : 'medium'),
-    description: description || `Reported via WhatsApp from ${phone}`,
-    location: {
-      name: locName,
-      address: locName,
-      coordinates: { lat, lng }
-    },
-    lat, lng,
-    media: [],
-    mediaFiles: [],
-    source: 'whatsapp',
-    reportedBy: `WhatsApp (${phone})`,
-    reportedByRole: 'citizen',
-    reporterName: `WhatsApp User (${phone})`,
-    status: 'pending_verification',
-    verificationStatus: 'pending',
-    priority: hazardType === 'tsunami' ? 'high' : 'normal',
-    timestamp: nowIso,
-    submittedAt: nowIso
-  };
-
-  receivedReports.unshift(report);
-  saveReportsToFile();
-  console.log(`\n📢 [REPORT RECORDED]: ID: ${report.id} | Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName}`);
-
-  if (mediaUrl) {
-    fetchPhotoBackground(report.id, mediaUrl);
-  }
-
-  return refId;
-}
-
 function handleWebhook(payload) {
   const from = payload.From || 'whatsapp:+910000000000';
   const body = (payload.Body || '').trim();
@@ -166,21 +60,20 @@ function handleWebhook(payload) {
   let session = userSessions.get(from) || { step: 'IDLE' };
   let replyText = '';
 
-  // 1. Reset / Help
+  // 1. Reset / Help / Greetings (ALWAYS reset to start menu)
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === 'cancel') {
     userSessions.delete(from);
-    replyText = `🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or *HI* to begin.`;
+    replyText = `🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or describe the hazard to begin.`;
   } else if (lowerBody === 'help' || lowerBody === 'info') {
     replyText = `🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n` +
                 `1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n` +
                 `2️⃣ *Interactive Menu:* Reply *REPORT*\n` +
                 `3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n` +
                 `📞 *Coast Guard Helpline:* 1078`;
-  } else if (/^(hi+|hello+|hey+|start|report|menu)$/i.test(lowerBody)) {
-    // Any greeting always shows Welcome Menu
+  } else if (/^(hi+|hello+|hey+|report|start|menu|namaste)$/i.test(lowerBody)) {
     session = { step: 'SELECT_HAZARD' };
     userSessions.set(from, session);
-    replyText = WELCOME_MESSAGE;
+    replyText = WELCOME_TEXT;
   } else if (session.step === 'IDLE') {
     const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
     const hasHazardKeyword = ['wave', 'flood', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone'].some(k => lowerBody.includes(k));
@@ -189,11 +82,9 @@ function handleWebhook(payload) {
       const lat = latitude || matchedLoc?.lat || 19.0760;
       const lng = longitude || matchedLoc?.lng || 72.8777;
       const locName = matchedLoc?.name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion', 'sos'].find(h => lowerBody.includes(h)) || 'high_waves';
+      const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
 
-      const refId = recordReport(hazardType, locName, lat, lng, body, from, mediaUrl);
       userSessions.delete(from);
-
       replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
                   `📋 *Reference ID:* \`${refId}\`\n` +
                   `📍 *Location:* ${locName}\n` +
@@ -202,32 +93,26 @@ function handleWebhook(payload) {
     } else {
       session.step = 'SELECT_HAZARD';
       userSessions.set(from, session);
-      replyText = WELCOME_MESSAGE;
+      replyText = WELCOME_TEXT;
     }
   } else if (session.step === 'SELECT_HAZARD') {
-    let hazardType = HAZARD_MAP[body];
+    const hazardType = HAZARD_MAP[body];
     if (!hazardType) {
-      if (lowerBody.includes('wave')) hazardType = 'high_waves';
-      else if (lowerBody.includes('flood')) hazardType = 'flooding';
-      else if (lowerBody.includes('surge')) hazardType = 'storm_surge';
-      else if (lowerBody.includes('tsunami')) hazardType = 'tsunami';
-      else if (lowerBody.includes('erosion')) hazardType = 'coastal_erosion';
-      else if (lowerBody.includes('sos')) hazardType = 'emergency_sos';
-      else hazardType = 'high_waves';
-    }
-    session.hazardType = hazardType;
-    session.step = 'LOCATION';
-    userSessions.set(from, session);
+      replyText = `⚠️ Please reply with a number from *1 to 6*:\n\n1️⃣ High Waves\n2️⃣ Flooding\n3️⃣ Storm Surge\n4️⃣ Tsunami\n5️⃣ Erosion\n6️⃣ SOS`;
+    } else {
+      session.hazardType = hazardType;
+      session.step = 'LOCATION';
+      userSessions.set(from, session);
 
-    replyText = `📍 *Step 2: Share Incident Location*\n\n` +
-                `• Tap 📎 *Attachment* > *Location* > *Send Your Current Location*\n` +
-                `• Or reply with the coastal landmark (e.g. _"Juhu Beach, Mumbai"_)\n\n` +
-                `Reply *RESET* to restart.`;
+      replyText = `📍 *Step 2: Share Incident Location*\n\n` +
+                  `• Tap 📎 *Attachment* > *Location* > *Send Your Current Location*\n` +
+                  `• Or reply with the coastal landmark (e.g. _"Juhu Beach, Mumbai"_)\n\n` +
+                  `Reply *RESET* to restart.`;
+    }
   } else if (session.step === 'LOCATION') {
-    const locMatch = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
-    session.lat = latitude || locMatch?.lat || 19.0760;
-    session.lng = longitude || locMatch?.lng || 72.8777;
-    session.locName = payload.Address || locMatch?.name || body || 'Reported Coastal Location';
+    session.lat = latitude || 19.0760;
+    session.lng = longitude || 72.8777;
+    session.locName = payload.Address || body || 'Reported Coastal Location';
     session.step = 'PHOTO';
     userSessions.set(from, session);
 
@@ -235,18 +120,13 @@ function handleWebhook(payload) {
                 `Location: *${session.locName}*\n\n` +
                 `Please send a live photo of the hazard, or reply *SKIP* to submit without photo.`;
   } else if (session.step === 'PHOTO') {
-    const hazardType = session.hazardType || 'high_waves';
-    const locName = session.locName || 'Reported Coastal Location';
-    const lat = session.lat || 19.0760;
-    const lng = session.lng || 72.8777;
-
-    const refId = recordReport(hazardType, locName, lat, lng, `Reported via WhatsApp: ${hazardType} at ${locName}`, from, mediaUrl);
+    const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
     userSessions.delete(from);
 
     replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
                 `📋 *Reference ID:* \`${refId}\`\n` +
-                `⚠️ *Hazard:* ${(hazardType || 'Hazard').toUpperCase().replace('_', ' ')}\n` +
-                `📍 *Location:* ${locName}\n` +
+                `⚠️ *Hazard:* ${(session.hazardType || 'Hazard').toUpperCase().replace('_', ' ')}\n` +
+                `📍 *Location:* ${session.locName}\n` +
                 `${mediaUrl ? '📸 *Evidence:* Photo Attached & Geotagged\n' : ''}\n` +
                 `Disaster response and coastal control teams have been alerted.\n\n` +
                 `📞 *Emergency Coast Guard:* 1078`;
@@ -259,41 +139,16 @@ function handleWebhook(payload) {
 }
 
 const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const url = req.url || '/';
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  const url = req.url.split('?')[0];
-
-  // REST API for Official Console
-  if (req.method === 'GET' && (url === '/api/reports' || url === '/reports')) {
-    const jsonBuf = Buffer.from(JSON.stringify(receivedReports), 'utf8');
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Length': jsonBuf.length
-    });
-    res.end(jsonBuf);
-    return;
-  }
-
-  // Health check
+  // Support health check
   if (req.method === 'GET') {
-    const healthBuf = Buffer.from(JSON.stringify({ status: 'active', service: 'OceanSaksham Twilio WhatsApp Webhook' }), 'utf8');
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Length': healthBuf.length
-    });
-    res.end(healthBuf);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'active', service: 'OceanSaksham Twilio WhatsApp Webhook' }));
     return;
   }
 
-  // Handle POST webhook from Twilio
+  // Handle POST webhook
   if (req.method === 'POST') {
     let rawBody = '';
     req.on('data', chunk => {
@@ -312,22 +167,20 @@ const server = http.createServer((req, res) => {
         console.error('Error parsing body:', err);
       }
 
-      console.log(`\n[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}" | Media: ${payload.NumMedia || 0}`);
+      console.log(`[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}"`);
 
       const twiml = handleWebhook(payload);
-      console.log('[TwiML Sent]:\n', twiml);
+      console.log('[TwiML Response sent]:\n', twiml);
 
-      const xmlBuf = Buffer.from(twiml, 'utf8');
       res.writeHead(200, {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'Content-Length': xmlBuf.length
+        'Content-Type': 'text/xml; charset=utf-8'
       });
-      res.end(xmlBuf);
+      res.end(twiml, 'utf8');
     });
     return;
   }
 
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not Found');
 });
 
