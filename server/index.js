@@ -1,10 +1,11 @@
 /**
  * Pure Node.js Built-in HTTP Server for Twilio WhatsApp Webhook
  * ZERO EXTERNAL DEPENDENCIES
- * Exposes Webhook + REST API to sync WhatsApp reports directly with Official Console & Map!
+ * Automatically downloads and encodes WhatsApp photos into permanent Base64 Data URLs!
  */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const querystring = require('querystring');
@@ -36,13 +37,59 @@ function saveReportsToFile() {
   }
 }
 
+/**
+ * Downloads a Twilio media URL (following redirects) and converts it to a permanent Base64 Data URL
+ */
+function downloadMediaAsBase64(mediaUrl) {
+  return new Promise((resolve) => {
+    if (!mediaUrl) return resolve(null);
+
+    function fetchUrl(targetUrl, redirectCount = 0) {
+      if (redirectCount > 6) return resolve(mediaUrl);
+
+      try {
+        const client = targetUrl.startsWith('https') ? https : http;
+        client.get(targetUrl, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return fetchUrl(res.headers.location, redirectCount + 1);
+          }
+
+          if (res.statusCode !== 200) {
+            console.warn(`[Twilio Media Download] Status: ${res.statusCode}`);
+            return resolve(mediaUrl);
+          }
+
+          const contentType = res.headers['content-type'] || 'image/jpeg';
+          const chunks = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            const base64 = buffer.toString('base64');
+            const dataUrl = `data:${contentType};base64,${base64}`;
+            console.log(`📸 [Media Downloaded & Encoded]: Size ${Math.round(buffer.length / 1024)} KB`);
+            resolve(dataUrl);
+          });
+        }).on('error', (err) => {
+          console.error('Media download error:', err.message);
+          resolve(mediaUrl);
+        });
+      } catch (err) {
+        console.error('Fetch error:', err.message);
+        resolve(mediaUrl);
+      }
+    }
+
+    fetchUrl(mediaUrl);
+  });
+}
+
 // Coastal Knowledge Base & Keywords
 const COASTAL_KB = [
   { name: 'Juhu Beach, Mumbai', keywords: ['juhu', 'juhu beach'], lat: 19.0988, lng: 72.8267 },
   { name: 'Versova Beach, Mumbai', keywords: ['versova', 'versova beach'], lat: 19.1317, lng: 72.8136 },
   { name: 'Marine Drive, Mumbai', keywords: ['marine drive', 'nariman point', 'chowpatty', 'mumbai'], lat: 18.9438, lng: 72.8233 },
+  { name: 'Gateway of India, Mumbai', keywords: ['gateway', 'gateway of india', 'colaba'], lat: 18.9220, lng: 72.8347 },
   { name: 'Aksa Beach, Mumbai', keywords: ['aksa', 'aksa beach', 'malad'], lat: 19.1760, lng: 72.7950 },
-  { name: 'Gateway of India, Mumbai', keywords: ['gateway', 'colaba'], lat: 18.9220, lng: 72.8347 },
   { name: 'Marina Beach, Chennai', keywords: ['marina', 'marina beach', 'chennai'], lat: 13.0500, lng: 80.2824 },
   { name: 'Calangute Beach, Goa', keywords: ['calangute', 'baga', 'goa'], lat: 15.5439, lng: 73.7553 },
   { name: 'Puri Beach, Odisha', keywords: ['puri', 'odisha'], lat: 19.7983, lng: 85.8249 },
@@ -59,10 +106,25 @@ const HAZARD_MAP = {
   '6': 'emergency_sos'
 };
 
-function createReport(hazardType, locName, lat, lng, description, mediaUrl, from) {
+async function createReport(hazardType, locName, lat, lng, description, rawMediaUrl, from) {
   const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
   const nowIso = new Date().toISOString();
   const phone = (from || '').replace('whatsapp:', '');
+
+  let finalMediaUrl = rawMediaUrl;
+  if (rawMediaUrl && rawMediaUrl.startsWith('http')) {
+    finalMediaUrl = await downloadMediaAsBase64(rawMediaUrl);
+  }
+
+  const mediaItem = finalMediaUrl ? {
+    id: `wa_img_${Date.now()}`,
+    url: finalMediaUrl,
+    preview: finalMediaUrl,
+    dataUrl: finalMediaUrl,
+    name: `whatsapp_${refId}.jpg`,
+    type: 'image',
+    geotagged: true
+  } : null;
 
   const report = {
     id: `wa_${Date.now()}`,
@@ -77,15 +139,8 @@ function createReport(hazardType, locName, lat, lng, description, mediaUrl, from
     },
     lat: lat,
     lng: lng,
-    media: mediaUrl ? [{
-      id: `wa_img_${Date.now()}`,
-      url: mediaUrl,
-      preview: mediaUrl,
-      name: `whatsapp_${refId}.jpg`,
-      type: 'image',
-      geotagged: true
-    }] : [],
-    mediaFiles: mediaUrl ? [{ url: mediaUrl, preview: mediaUrl }] : [],
+    media: mediaItem ? [mediaItem] : [],
+    mediaFiles: mediaItem ? [mediaItem] : [],
     source: 'whatsapp',
     reportedBy: `WhatsApp (${phone})`,
     reportedByRole: 'citizen',
@@ -99,11 +154,11 @@ function createReport(hazardType, locName, lat, lng, description, mediaUrl, from
 
   receivedReports.unshift(report);
   saveReportsToFile();
-  console.log(`\n📢 [NEW WHATSAPP REPORT RECORDED]: Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName} | Photo: ${mediaUrl ? 'Yes' : 'No'}`);
+  console.log(`\n📢 [NEW WHATSAPP REPORT RECORDED]: Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName} | Photo: ${finalMediaUrl ? 'Yes (Base64)' : 'No'}`);
   return { report, refId };
 }
 
-function handleWebhook(payload) {
+async function handleWebhook(payload) {
   const from = payload.From || 'whatsapp:+910000000000';
   const body = (payload.Body || '').trim();
   const lowerBody = body.toLowerCase();
@@ -115,7 +170,7 @@ function handleWebhook(payload) {
   let session = userSessions.get(from) || { step: 'IDLE' };
   let replyText = '';
 
-  // 1. Reset / Help
+  // 1. Reset / Help commands
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === 'cancel') {
     userSessions.delete(from);
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -131,26 +186,91 @@ function handleWebhook(payload) {
 </Response>`;
   }
 
-  // 2. Priority Check: Is this a single full NLP text report or photo with location?
+  // 2. CASE: User sent a Photo (either standalone or with caption or as follow-up)
+  if (mediaUrl) {
+    const phone = from.replace('whatsapp:', '');
+    // Check if user recently submitted a report within 15 minutes
+    const recentReport = receivedReports.find(r => 
+      r.reportedBy.includes(phone) && 
+      (Date.now() - new Date(r.submittedAt).getTime()) < 15 * 60 * 1000
+    );
+
+    const base64Photo = await downloadMediaAsBase64(mediaUrl);
+
+    if (recentReport) {
+      // Attach to recent report
+      const mediaItem = {
+        id: `wa_img_${Date.now()}`,
+        url: base64Photo,
+        preview: base64Photo,
+        dataUrl: base64Photo,
+        name: `whatsapp_evidence_${Date.now()}.jpg`,
+        type: 'image',
+        geotagged: true
+      };
+      recentReport.media = [mediaItem];
+      recentReport.mediaFiles = [mediaItem];
+      saveReportsToFile();
+      userSessions.delete(from);
+
+      console.log(`📸 [PHOTO ATTACHED TO EXISTING REPORT]: ${recentReport.id}`);
+
+      replyText = `✅ *Photo Evidence Received & Attached!*\n\n` +
+                  `📋 *Linked Report:* \`${recentReport.id}\`\n` +
+                  `📍 *Location:* ${recentReport.location?.name || 'Coastal Area'}\n` +
+                  `📸 *Evidence:* Image successfully verified & linked.\n\n` +
+                  `Disaster response teams at INCOIS can now review your photo in the Official Console.\n\n` +
+                  `Thank you for contributing to coastal safety! 🌊`;
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${replyText}</Message>
+</Response>`;
+    } else {
+      // Standalone photo submission
+      const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
+      const lat = latitude || matchedLoc?.lat || 19.0988;
+      const lng = longitude || matchedLoc?.lng || 72.8267;
+      const locName = payload.Address || matchedLoc?.name || (body.length > 2 ? body : 'Juhu Beach, Mumbai');
+      const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion'].find(h => lowerBody.includes(h)) || 'high_waves';
+
+      const { refId } = await createReport(hazardType, locName, lat, lng, body || 'Photo hazard report submitted via WhatsApp', mediaUrl, from);
+      userSessions.delete(from);
+
+      replyText = `✅ *Photo Hazard Report Received & Dispatched!*\n\n` +
+                  `📋 *Reference ID:* \`${refId}\`\n` +
+                  `⚠️ *Hazard:* ${hazardType.replace('_', ' ').toUpperCase()}\n` +
+                  `📍 *Location:* ${locName}\n` +
+                  `📸 *Evidence:* Live Photo Attached & Geotagged\n\n` +
+                  `Disaster management authorities and the Official Review Console have received your report.\n\n` +
+                  `📞 *Coast Guard Distress Helpline:* 1078`;
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${replyText}</Message>
+</Response>`;
+    }
+  }
+
+  // 3. Priority Check: Is this a single full NLP text report?
   const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
   const hasHazardKeyword = ['wave', 'waves', 'flood', 'flooding', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone', 'sea'].some(k => lowerBody.includes(k));
 
-  // If user sent a full description in ONE message (contains hazard info and/or photo/location)
-  if (hasHazardKeyword || (mediaUrl && (matchedLoc || latitude || body.length > 5))) {
-    const lat = latitude || matchedLoc?.lat || 19.0760;
-    const lng = longitude || matchedLoc?.lng || 72.8777;
+  if (hasHazardKeyword) {
+    const lat = latitude || matchedLoc?.lat || 19.0988;
+    const lng = longitude || matchedLoc?.lng || 72.8267;
     const locName = payload.Address || matchedLoc?.name || (body.length > 3 ? body : `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion', 'sos'].find(h => lowerBody.includes(h)) || 'high_waves';
 
-    const { refId } = createReport(hazardType, locName, lat, lng, body || 'Photo report submitted', mediaUrl, from);
+    const { refId } = await createReport(hazardType, locName, lat, lng, body, null, from);
     userSessions.delete(from);
 
     replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
                 `📋 *Reference ID:* \`${refId}\`\n` +
                 `⚠️ *Hazard:* ${hazardType.replace('_', ' ').toUpperCase()}\n` +
-                `📍 *Location:* ${locName}\n` +
-                `${mediaUrl ? '📸 *Evidence:* Photo Attached & Geotagged\n' : ''}\n` +
-                `Disaster management and INCOIS Coastal Control have received your report.\n\n` +
+                `📍 *Location:* ${locName}\n\n` +
+                `Disaster management and INCOIS Coastal Control have received your report.\n` +
+                `_Tip: Send a photo anytime to attach live evidence to this report._\n\n` +
                 `📞 *Emergency Coast Guard:* 1078`;
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -159,7 +279,7 @@ function handleWebhook(payload) {
 </Response>`;
   }
 
-  // 3. Conversational Guided Flow
+  // 4. Conversational Guided Flow for greetings or "REPORT"
   if (session.step === 'IDLE') {
     session.step = 'SELECT_HAZARD';
     userSessions.set(from, session);
@@ -194,13 +314,13 @@ function handleWebhook(payload) {
                 `Location: *${session.locName}*\n\n` +
                 `Please send a live photo of the hazard, or reply *SKIP* to submit without photo.`;
   } else if (session.step === 'PHOTO') {
-    const { refId } = createReport(
+    const { refId } = await createReport(
       session.hazardType || 'high_waves',
       session.locName,
       session.lat,
       session.lng,
       `Reported via WhatsApp: ${session.hazardType} at ${session.locName}`,
-      mediaUrl,
+      null,
       from
     );
     userSessions.delete(from);
@@ -208,8 +328,7 @@ function handleWebhook(payload) {
     replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
                 `📋 *Reference ID:* \`${refId}\`\n` +
                 `⚠️ *Hazard:* ${(session.hazardType || 'Hazard').toUpperCase().replace('_', ' ')}\n` +
-                `📍 *Location:* ${session.locName}\n` +
-                `${mediaUrl ? '📸 *Evidence:* Photo Attached & Geotagged\n' : ''}\n` +
+                `📍 *Location:* ${session.locName}\n\n` +
                 `Official Review Console and live rescue teams have been alerted.\n\n` +
                 `📞 *Emergency Coast Guard:* 1078`;
   }
@@ -258,7 +377,7 @@ const server = http.createServer((req, res) => {
       rawBody += chunk.toString();
     });
 
-    req.on('end', () => {
+    req.on('end', async () => {
       let payload = {};
       try {
         if (rawBody.startsWith('{')) {
@@ -272,7 +391,7 @@ const server = http.createServer((req, res) => {
 
       console.log(`\n[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}" | Media: ${payload.NumMedia || 0}`);
 
-      const twiml = handleWebhook(payload);
+      const twiml = await handleWebhook(payload);
       res.writeHead(200, { 'Content-Type': 'text/xml' });
       res.end(twiml);
     });
