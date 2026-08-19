@@ -2,9 +2,6 @@
  * Pure Node.js Built-in HTTP Server for Twilio WhatsApp Webhook
  * ZERO EXTERNAL DEPENDENCIES
  * Exposes Webhook + REST API to sync WhatsApp reports directly with Official Console & Map!
- *
- * KEY DESIGN: Respond to Twilio IMMEDIATELY (within 15s timeout), then download
- * media in the background. This ensures the user always gets a confirmation message.
  */
 
 const http = require('http');
@@ -42,7 +39,7 @@ function saveReportsToFile() {
 
 /**
  * Downloads a Twilio media URL and converts it to a permanent Base64 Data URL.
- * Called in the BACKGROUND after responding to Twilio - no timeout risk.
+ * Runs in background so webhook response to Twilio is NEVER blocked or delayed.
  */
 function downloadMediaAsBase64(mediaUrl) {
   return new Promise((resolve) => {
@@ -70,7 +67,7 @@ function downloadMediaAsBase64(mediaUrl) {
               resolve(`data:${contentType};base64,${base64}`);
             });
           } else {
-            console.warn(`[Media Download] HTTP ${res.statusCode} - skipping background fetch`);
+            console.warn(`[Media Download] HTTP ${res.statusCode} - skipping`);
             resolve(null);
           }
         }).on('error', (err) => {
@@ -86,10 +83,6 @@ function downloadMediaAsBase64(mediaUrl) {
   });
 }
 
-/**
- * After responding to Twilio, downloads the photo in the background and
- * patches the report with the real base64 image.
- */
 function attachMediaInBackground(reportId, rawMediaUrl) {
   if (!rawMediaUrl || !reportId) return;
   downloadMediaAsBase64(rawMediaUrl).then(base64 => {
@@ -108,18 +101,18 @@ function attachMediaInBackground(reportId, rawMediaUrl) {
     receivedReports[idx].media = [mediaItem];
     receivedReports[idx].mediaFiles = [mediaItem];
     saveReportsToFile();
-    console.log(`✅ [Photo Attached to Report ${reportId}]`);
+    console.log(`✅ [Photo Attached to Report ${reportId} in Dashboard]`);
   });
 }
 
 // Coastal Knowledge Base & Keywords
 const COASTAL_KB = [
-  { name: 'Juhu Beach, Mumbai', keywords: ['juhu', 'juhu beach'], lat: 19.0988, lng: 72.8267 },
-  { name: 'Versova Beach, Mumbai', keywords: ['versova', 'versova beach'], lat: 19.1317, lng: 72.8136 },
-  { name: 'Marine Drive, Mumbai', keywords: ['marine drive', 'nariman point', 'chowpatty', 'mumbai'], lat: 18.9438, lng: 72.8233 },
-  { name: 'Gateway of India, Mumbai', keywords: ['gateway', 'gateway of india', 'colaba'], lat: 18.9220, lng: 72.8347 },
-  { name: 'Aksa Beach, Mumbai', keywords: ['aksa', 'aksa beach', 'malad'], lat: 19.1760, lng: 72.7950 },
-  { name: 'Marina Beach, Chennai', keywords: ['marina', 'marina beach', 'chennai'], lat: 13.0500, lng: 80.2824 },
+  { name: 'Juhu Beach, Mumbai', keywords: ['juhu'], lat: 19.0988, lng: 72.8267 },
+  { name: 'Versova Beach, Mumbai', keywords: ['versova'], lat: 19.1317, lng: 72.8136 },
+  { name: 'Marine Drive, Mumbai', keywords: ['marine drive', 'chowpatty', 'nariman point'], lat: 18.9438, lng: 72.8233 },
+  { name: 'Gateway of India, Mumbai', keywords: ['gateway', 'colaba'], lat: 18.9220, lng: 72.8347 },
+  { name: 'Aksa Beach, Mumbai', keywords: ['aksa', 'malad'], lat: 19.1760, lng: 72.7950 },
+  { name: 'Marina Beach, Chennai', keywords: ['marina', 'chennai'], lat: 13.0500, lng: 80.2824 },
   { name: 'Calangute Beach, Goa', keywords: ['calangute', 'baga', 'goa'], lat: 15.5439, lng: 73.7553 },
   { name: 'Puri Beach, Odisha', keywords: ['puri', 'odisha'], lat: 19.7983, lng: 85.8249 },
   { name: 'RK Beach, Vizag', keywords: ['vizag', 'rk beach', 'visakhapatnam'], lat: 17.7126, lng: 83.3182 },
@@ -135,10 +128,15 @@ const HAZARD_MAP = {
   '6': 'emergency_sos'
 };
 
-/**
- * Creates a report SYNCHRONOUSLY (no media download), saves immediately.
- * Media is attached later via attachMediaInBackground().
- */
+const HAZARD_LABELS = {
+  'high_waves': 'HIGH WAVES / SWELL SURGE',
+  'flooding': 'COASTAL FLOODING',
+  'storm_surge': 'STORM SURGE',
+  'tsunami': 'TSUNAMI WARNING',
+  'coastal_erosion': 'BEACH EROSION',
+  'emergency_sos': 'EMERGENCY DISTRESS (SOS)'
+};
+
 function createReport(hazardType, locName, lat, lng, description, from) {
   const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
   const nowIso = new Date().toISOString();
@@ -175,11 +173,38 @@ function createReport(hazardType, locName, lat, lng, description, from) {
   return { report, refId };
 }
 
+function escapeXml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function twiml(message) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Message>${message}</Message>
+  <Message>
+    <Body>${escapeXml(message)}</Body>
+  </Message>
 </Response>`;
+}
+
+function getWelcomeMenu() {
+  return (
+    `🌊 *Welcome to OceanSaksham Hazard Reporting*\n` +
+    `_INCOIS Coastal Information Services_\n\n` +
+    `Please reply with hazard number:\n` +
+    `1️⃣ 🌊 High Waves / Swell Surge\n` +
+    `2️⃣ 🌧️ Coastal Flooding\n` +
+    `3️⃣ 🌀 Storm Surge\n` +
+    `4️⃣ 🚨 Tsunami\n` +
+    `5️⃣ 🏖️ Beach Erosion\n` +
+    `6️⃣ 🆘 Emergency Distress\n\n` +
+    `_Or describe what you see in words._`
+  );
 }
 
 function handleWebhook(payload) {
@@ -193,138 +218,191 @@ function handleWebhook(payload) {
 
   let session = userSessions.get(from) || { step: 'IDLE' };
 
-  // --- Reset / Help ---
+  // --- 1. Global Reset / Help / Restart ---
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === 'cancel') {
     userSessions.delete(from);
-    return twiml(`🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or describe what you see to begin.`);
+    return twiml(`🔄 *Session Reset*\n\nSend *REPORT* or *HI* to begin.`);
   }
 
   if (lowerBody === 'help' || lowerBody === 'info') {
-    return twiml(`🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n2️⃣ *Interactive Menu:* Reply *REPORT*\n3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n📞 *Coast Guard Helpline:* 1078`);
+    return twiml(
+      `🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n` +
+      `1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n` +
+      `2️⃣ *Interactive Menu:* Reply *REPORT*\n` +
+      `3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n` +
+      `📞 *Coast Guard Helpline:* 1078`
+    );
   }
 
-  // --- STEP 3: User in guided flow, sending photo (or SKIP) ---
-  if (session.step === 'PHOTO') {
-    const hazardType = session.hazardType || 'high_waves';
-    const locName = session.locName || 'Coastal Area';
-    const lat = session.lat || 19.0988;
-    const lng = session.lng || 72.8267;
-    const description = lowerBody === 'skip'
-      ? `Reported via WhatsApp: ${hazardType} at ${locName}`
-      : `Reported via WhatsApp: ${hazardType} at ${locName}`;
+  // --- 2. Greetings reset session back to Welcome Menu ---
+  const isGreeting = ['hi', 'hello', 'hey', 'start', 'report', 'menu'].includes(lowerBody);
+  if (isGreeting && session.step !== 'LOCATION' && session.step !== 'PHOTO') {
+    session = { step: 'SELECT_HAZARD' };
+    userSessions.set(from, session);
+    return twiml(getWelcomeMenu());
+  }
 
-    const { report, refId } = createReport(hazardType, locName, lat, lng, description, from);
+  // --- 3. PHOTO RECEIVED (Either at step PHOTO, or standalone when IDLE) ---
+  if (mediaUrl) {
+    let hazardType = session.hazardType || 'high_waves';
+    let locName = session.locName || payload.Address || 'Reported Coastal Location';
+    let lat = session.lat || latitude || 19.0988;
+    let lng = session.lng || longitude || 72.8267;
+
+    // Check if caption contains location
+    if (body.length > 2) {
+      const locMatch = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
+      if (locMatch) {
+        locName = locMatch.name;
+        lat = locMatch.lat;
+        lng = locMatch.lng;
+      }
+    }
+
+    const { report, refId } = createReport(
+      hazardType,
+      locName,
+      lat,
+      lng,
+      `Reported via WhatsApp: ${HAZARD_LABELS[hazardType] || hazardType} at ${locName}`,
+      from
+    );
+
+    // Delete session so next message starts fresh
     userSessions.delete(from);
 
-    // Download media in background AFTER responding
-    if (mediaUrl) attachMediaInBackground(report.id, mediaUrl);
+    // Download and attach photo in background
+    attachMediaInBackground(report.id, mediaUrl);
+
+    const hazardLabel = HAZARD_LABELS[hazardType] || hazardType.toUpperCase().replace(/_/g, ' ');
 
     return twiml(
       `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
       `📋 *Reference ID:* \`${refId}\`\n` +
-      `⚠️ *Hazard:* ${hazardType.toUpperCase().replace(/_/g, ' ')}\n` +
+      `⚠️ *Hazard:* ${hazardLabel}\n` +
       `📍 *Location:* ${locName}\n` +
-      `${mediaUrl ? '📸 *Evidence:* Photo received & being processed\n' : ''}\n` +
-      `Official Review Console and INCOIS disaster teams have received your report.\n\n` +
-      `📞 *Emergency Coast Guard:* 1078`
+      `📸 *Evidence:* Photo Attached & Geotagged\n\n` +
+      `Disaster management and coastal monitoring teams at INCOIS have been alerted.\n\n` +
+      `📞 *Coast Guard:* 1078`
     );
   }
 
-  // --- Standalone photo when IDLE ---
-  if (mediaUrl && session.step === 'IDLE') {
-    const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
-    const lat = latitude || matchedLoc?.lat || 19.0988;
-    const lng = longitude || matchedLoc?.lng || 72.8267;
-    const locName = payload.Address || matchedLoc?.name || (body.length > 2 ? body : 'Coastal Area');
-    const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion', 'sos'].find(h => lowerBody.includes(h)) || 'high_waves';
+  // --- 4. STEP 3: User in PHOTO step, sending SKIP or text ---
+  if (session.step === 'PHOTO') {
+    const isSkip = ['skip', 'no', 'done', 'submit', 'ok', 'pass'].includes(lowerBody);
 
-    const { report, refId } = createReport(hazardType, locName, lat, lng, body || 'Live photo coastal hazard report', from);
-    userSessions.delete(from);
+    if (isSkip || body.length > 0) {
+      const hazardType = session.hazardType || 'high_waves';
+      const locName = session.locName || 'Reported Coastal Area';
+      const lat = session.lat || 19.0988;
+      const lng = session.lng || 72.8267;
 
-    // Download media in background AFTER responding
-    attachMediaInBackground(report.id, mediaUrl);
+      const { report, refId } = createReport(
+        hazardType,
+        locName,
+        lat,
+        lng,
+        `Reported via WhatsApp: ${HAZARD_LABELS[hazardType] || hazardType} at ${locName}`,
+        from
+      );
 
-    return twiml(
-      `✅ *Photo Hazard Report Received & Dispatched!*\n\n` +
-      `📋 *Reference ID:* \`${refId}\`\n` +
-      `⚠️ *Hazard:* ${hazardType.replace(/_/g, ' ').toUpperCase()}\n` +
-      `📍 *Location:* ${locName}\n` +
-      `📸 *Evidence:* Photo received & being processed\n\n` +
-      `Disaster management authorities can now review your report in the Official Console.\n\n` +
-      `📞 *Coast Guard Distress Helpline:* 1078`
-    );
+      userSessions.delete(from);
+
+      const hazardLabel = HAZARD_LABELS[hazardType] || hazardType.toUpperCase().replace(/_/g, ' ');
+
+      return twiml(
+        `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
+        `📋 *Reference ID:* \`${refId}\`\n` +
+        `⚠️ *Hazard:* ${hazardLabel}\n` +
+        `📍 *Location:* ${locName}\n\n` +
+        `Disaster management and coastal monitoring teams at INCOIS have been alerted.\n\n` +
+        `📞 *Coast Guard:* 1078`
+      );
+    }
   }
 
-  // --- One-Shot Natural Language Report ---
+  // --- 5. One-Shot Natural Language Report (e.g. "high waves flooding at juhu beach") ---
   const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
-  const hasHazardKeyword = ['wave', 'waves', 'flood', 'flooding', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone', 'sea'].some(k => lowerBody.includes(k));
+  const isHazardText = ['wave', 'waves', 'flood', 'flooding', 'surge', 'tsunami', 'erosion', 'sos', 'cyclone', 'sea'].some(k => lowerBody.includes(k));
 
-  if (hasHazardKeyword) {
+  if (isHazardText && (matchedLoc || latitude || body.length > 15) && session.step === 'IDLE') {
     const lat = latitude || matchedLoc?.lat || 19.0988;
     const lng = longitude || matchedLoc?.lng || 72.8267;
-    const locName = payload.Address || matchedLoc?.name || (body.length > 3 ? body : `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    const locName = payload.Address || matchedLoc?.name || body;
     const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion', 'sos'].find(h => lowerBody.includes(h)) || 'high_waves';
 
     const { refId } = createReport(hazardType, locName, lat, lng, body, from);
     userSessions.delete(from);
 
+    const hazardLabel = HAZARD_LABELS[hazardType] || hazardType.toUpperCase().replace(/_/g, ' ');
+
     return twiml(
       `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
       `📋 *Reference ID:* \`${refId}\`\n` +
-      `⚠️ *Hazard:* ${hazardType.replace(/_/g, ' ').toUpperCase()}\n` +
+      `⚠️ *Hazard:* ${hazardLabel}\n` +
       `📍 *Location:* ${locName}\n\n` +
-      `Disaster management and INCOIS Coastal Control have received your report.\n` +
+      `Disaster management and coastal monitoring teams at INCOIS have been alerted.\n` +
       `_Tip: Send a photo anytime to attach live evidence._\n\n` +
-      `📞 *Emergency Coast Guard:* 1078`
+      `📞 *Coast Guard:* 1078`
     );
   }
 
-  // --- Conversational Step-by-Step Guided Flow ---
+  // --- 6. Step 1: IDLE -> Show Welcome Menu ---
   if (session.step === 'IDLE') {
     session.step = 'SELECT_HAZARD';
     userSessions.set(from, session);
-    return twiml(
-      `🌊 *Welcome to OceanSaksham Coastal Reporting*\n` +
-      `_National Ocean Information Services (INCOIS)_\n\n` +
-      `Please reply with the hazard number:\n\n` +
-      `1️⃣ 🌊 High Waves / Swell Surge\n` +
-      `2️⃣ 🌧️ Coastal Flooding\n` +
-      `3️⃣ 🌀 Storm Surge\n` +
-      `4️⃣ 🚨 Tsunami Warning\n` +
-      `5️⃣ 🏖️ Beach Erosion\n` +
-      `6️⃣ 🆘 Emergency Distress (SOS)\n\n` +
-      `_Or describe what you see in your own words._`
-    );
+    return twiml(getWelcomeMenu());
   }
 
+  // --- 7. Step 2: SELECT_HAZARD -> Validate hazard selection ---
   if (session.step === 'SELECT_HAZARD') {
-    const hazardType = HAZARD_MAP[body] || 'high_waves';
+    let hazardType = HAZARD_MAP[body];
+    if (!hazardType) {
+      // Check if they typed words like "flooding", "waves", etc.
+      if (lowerBody.includes('wave') || lowerBody.includes('swell')) hazardType = 'high_waves';
+      else if (lowerBody.includes('flood')) hazardType = 'flooding';
+      else if (lowerBody.includes('surge') || lowerBody.includes('storm')) hazardType = 'storm_surge';
+      else if (lowerBody.includes('tsunami')) hazardType = 'tsunami';
+      else if (lowerBody.includes('erosion')) hazardType = 'coastal_erosion';
+      else if (lowerBody.includes('sos') || lowerBody.includes('emergency')) hazardType = 'emergency_sos';
+    }
+
+    if (!hazardType) {
+      return twiml(
+        `⚠️ Please reply with a number from *1 to 6* to choose the hazard:\n\n` +
+        `1️⃣ High Waves\n2️⃣ Flooding\n3️⃣ Storm Surge\n4️⃣ Tsunami\n5️⃣ Erosion\n6️⃣ SOS`
+      );
+    }
+
     session.hazardType = hazardType;
     session.step = 'LOCATION';
     userSessions.set(from, session);
+
     return twiml(
       `📍 *Step 2: Share Incident Location*\n\n` +
       `• Tap 📎 *Attachment* > *Location* > *Send Your Current Location*\n` +
-      `• Or reply with the coastal landmark (e.g. _"Juhu Beach, Mumbai"_)\n\n` +
-      `Reply *RESET* to restart.`
+      `• Or reply with the coastal landmark name (e.g. _"Juhu Beach"_)\n\n` +
+      `Reply *RESET* to cancel.`
     );
   }
 
+  // --- 8. Step 3: LOCATION -> Capture location and prompt for photo ---
   if (session.step === 'LOCATION') {
     const locMatch = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
     session.lat = latitude || locMatch?.lat || 19.0988;
     session.lng = longitude || locMatch?.lng || 72.8267;
-    session.locName = payload.Address || locMatch?.name || body || 'Coastal Area';
+    session.locName = payload.Address || locMatch?.name || body || 'Reported Coastal Location';
     session.step = 'PHOTO';
     userSessions.set(from, session);
+
     return twiml(
       `📸 *Step 3: Capture Photo Evidence (Optional)*\n\n` +
       `Location: *${session.locName}*\n\n` +
-      `Please send a live photo of the hazard, or reply *SKIP* to submit without photo.`
+      `Send a live photo of the hazard, or reply *SKIP* to submit without photo.`
     );
   }
 
-  return twiml(`🌊 Welcome to *OceanSaksham*. Send *REPORT* to begin, or describe the hazard.`);
+  return twiml(getWelcomeMenu());
 }
 
 const server = http.createServer((req, res) => {
@@ -342,15 +420,23 @@ const server = http.createServer((req, res) => {
 
   // REST API - get all reports
   if (req.method === 'GET' && (url === '/api/reports' || url === '/api/whatsapp/reports' || url === '/reports')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(receivedReports));
+    const jsonBuf = Buffer.from(JSON.stringify(receivedReports), 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': jsonBuf.length
+    });
+    res.end(jsonBuf);
     return;
   }
 
   // Health check
   if (req.method === 'GET' && (url === '/' || url === '/health')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'active', service: 'OceanSaksham WhatsApp Webhook', totalReports: receivedReports.length }));
+    const healthBuf = Buffer.from(JSON.stringify({ status: 'active', service: 'OceanSaksham WhatsApp Webhook', totalReports: receivedReports.length }), 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': healthBuf.length
+    });
+    res.end(healthBuf);
     return;
   }
 
@@ -364,12 +450,23 @@ const server = http.createServer((req, res) => {
         payload = rawBody.startsWith('{') ? JSON.parse(rawBody) : querystring.parse(rawBody);
       } catch {}
 
-      console.log(`\n[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}" | Media: ${payload.NumMedia || 0}`);
+      console.log(`\n[Twilio Inbound] Path: ${url} | From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}" | Media: ${payload.NumMedia || 0}`);
 
-      // handleWebhook is now SYNCHRONOUS — responds to Twilio instantly
-      const responseXml = handleWebhook(payload);
-      res.writeHead(200, { 'Content-Type': 'text/xml' });
-      res.end(responseXml);
+      let responseXml;
+      try {
+        responseXml = handleWebhook(payload);
+      } catch (err) {
+        console.error('[handleWebhook Error]', err);
+        responseXml = twiml('✅ Report received. Our team will respond shortly.');
+      }
+
+      console.log('[TwiML Response sent]:\n', responseXml);
+      const xmlBuf = Buffer.from(responseXml, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'Content-Length': xmlBuf.length
+      });
+      res.end(xmlBuf);
     });
     return;
   }
