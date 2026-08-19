@@ -185,27 +185,42 @@ const ReportDetailModal = ({
               <div className="space-y-4">
                 {report?.media && report?.media?.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {report?.media?.map((item, index) => (
-                      <div
-                        key={index}
-                        className="relative group cursor-pointer rounded-lg overflow-hidden border border-border"
-                        onClick={() => setSelectedMedia(item)}
-                      >
-                        <Image
-                          src={item?.url}
-                          alt={`Report media ${index + 1}`}
-                          className="w-full h-32 object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Icon name="Eye" size={24} color="white" />
+                    {report?.media?.map((item, index) => {
+                      const mediaSrc = item?.url || item?.preview || (typeof item === 'string' ? item : '');
+                      return (
+                        <div
+                          key={index}
+                          className="relative group cursor-pointer rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 shadow-sm"
+                          onClick={() => setSelectedMedia(item)}
+                        >
+                          {mediaSrc ? (
+                            <img
+                              src={mediaSrc}
+                              alt={`Report evidence ${index + 1}`}
+                              className="w-full h-36 object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-36 flex items-center justify-center bg-slate-100 text-slate-400">
+                              <Icon name="Image" size={32} />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                            <Icon name="Eye" size={24} color="white" />
+                            <span className="text-[11px] font-bold mt-1">View Full Size</span>
+                          </div>
+                          {item?.geotagged && (
+                            <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 bg-black/75 backdrop-blur-xs rounded-md text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
+                              <span>📍 Geotagged</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Icon name="Image" size={48} className="text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No media files attached to this report</p>
+                  <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200">
+                    <Icon name="Image" size={48} className="text-slate-400 mx-auto mb-2" />
+                    <p className="text-slate-600 font-medium text-sm">No media files attached to this report</p>
                   </div>
                 )}
               </div>
@@ -291,18 +306,18 @@ const ReportDetailModal = ({
             className="absolute inset-0 bg-black/80"
             onClick={() => setSelectedMedia(null)}
           />
-          <div className="relative max-w-4xl max-h-full">
-            <Image
-              src={selectedMedia?.url}
-              alt="Full size media"
-              className="max-w-full max-h-full object-contain"
+          <div className="relative max-w-4xl max-h-[85vh] z-10 p-2">
+            <img
+              src={selectedMedia?.url || selectedMedia?.preview || (typeof selectedMedia === 'string' ? selectedMedia : '')}
+              alt="Full size evidence"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-700"
             />
             <Button
               variant="ghost"
               size="sm"
               iconName="X"
               onClick={() => setSelectedMedia(null)}
-              className="absolute top-4 right-4 bg-black/50 text-white hover:bg-black/70"
+              className="absolute top-4 right-4 bg-black/70 text-white hover:bg-black p-2 rounded-full cursor-pointer"
             />
           </div>
         </div>

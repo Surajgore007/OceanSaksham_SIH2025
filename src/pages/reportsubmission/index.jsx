@@ -93,6 +93,8 @@ const ReportSubmission = () => {
             location: preFilledData.location?.address || preFilledData.location?.name,
             severity: preFilledData.severity
           });
+          // Immediately jump to step 3 (Live Camera Capture) in Quick Report Mode
+          setCurrentStep(3);
           // Clear the stored data
           localStorage.removeItem('quickReportData');
         } catch (error) {
@@ -339,6 +341,8 @@ const ReportSubmission = () => {
           <MediaUpload
             uploadedFiles={formData?.mediaFiles}
             onFilesChange={(files) => handleFormDataChange({ mediaFiles: files })}
+            isQuickReport={isQuickReport}
+            hazardInfo={sourceHazardInfo}
           />
         );
       default:
@@ -353,70 +357,106 @@ const ReportSubmission = () => {
         
         <main className="pt-16 pb-20 lg:pb-8">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Quick Report Banner */}
+            {/* Quick Report Inherited Info Banner */}
             {isQuickReport && sourceHazardInfo && (
-              <div className="mb-6 p-4 bg-blue/10 border border-blue/20 rounded-lg">
+              <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-2xl">
                 <div className="flex items-start space-x-3">
-                  <Icon name="Zap" size={20} className="text-blue mt-1" />
-                  <div>
-                    <h3 className="font-semibold text-blue mb-1">Quick Report Mode</h3>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Creating a related incident report based on existing {sourceHazardInfo.type?.replace('_', ' ')} hazard.
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                    <Icon name="Zap" size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base">Rapid Verification Mode</h3>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 border border-blue-300 rounded-full text-[10px] font-bold">Live Evidence</span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-medium mt-0.5">
+                      Directly verifying active incident near <strong>{sourceHazardInfo.location}</strong>.
                     </p>
-                    <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                      <span>Location: {sourceHazardInfo.location}</span>
-                      <span>Severity: {sourceHazardInfo.severity}</span>
+                    <div className="flex items-center gap-3 text-xs font-semibold text-slate-700 mt-2 flex-wrap">
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                        ⚠️ Hazard: <strong className="capitalize">{t(sourceHazardInfo.type, sourceHazardInfo.type?.replace('_', ' '))}</strong>
+                      </span>
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                        🔴 Severity: <strong className="capitalize">{t(sourceHazardInfo.severity, sourceHazardInfo.severity)}</strong>
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Progress Indicator */}
-            <ProgressIndicator
-              currentStep={currentStep}
-              totalSteps={totalSteps}
-              steps={steps}
-              className="mb-8"
-            />
+            {/* Progress Indicator - Only show full step numbers in standard mode */}
+            {!isQuickReport && (
+              <ProgressIndicator
+                currentStep={currentStep}
+                totalSteps={totalSteps}
+                steps={steps}
+                className="mb-8"
+              />
+            )}
 
             {/* Step Content */}
-            <div className="glass-card rounded-xl p-6 lg:p-8 mb-8">
+            <div className="glass-card rounded-2xl p-5 sm:p-6 lg:p-8 mb-6 border-2 border-slate-200">
               {renderStepContent()}
             </div>
 
             {/* Navigation Controls */}
             {currentStep <= totalSteps && (
               <div className="flex flex-col sm:flex-row gap-3 justify-between">
-                <Button
-                  variant="outline"
-                  onClick={handlePrevious}
-                  disabled={currentStep === 1}
-                  iconName="ArrowLeft"
-                  iconPosition="left"
-                  className="sm:w-auto"
-                >
-                  {t('previous', 'Previous')}
-                </Button>
+                {!isQuickReport ? (
+                  <Button
+                    variant="outline"
+                    onClick={handlePrevious}
+                    disabled={currentStep === 1}
+                    iconName="ArrowLeft"
+                    iconPosition="left"
+                    className="sm:w-auto font-bold border-slate-300"
+                  >
+                    {t('previous', 'Previous')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(getDashboardForRole(currentUser?.role))}
+                    iconName="ArrowLeft"
+                    iconPosition="left"
+                    className="sm:w-auto font-bold border-slate-300 text-slate-700"
+                  >
+                    Back to Live Map
+                  </Button>
+                )}
 
                 <div className="flex gap-3">
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate(getDashboardForRole(currentUser?.role))}
-                    iconName="X"
-                    iconPosition="left"
-                  >
-                    {t('cancel', 'Cancel')}
-                  </Button>
+                  {!isQuickReport && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate(getDashboardForRole(currentUser?.role))}
+                      iconName="X"
+                      iconPosition="left"
+                      className="font-bold text-slate-600 hover:text-slate-900"
+                    >
+                      {t('cancel', 'Cancel')}
+                    </Button>
+                  )}
                   
                   <Button
                     onClick={currentStep === totalSteps ? handleSubmit : handleNext}
                     loading={isSubmitting}
+                    disabled={isQuickReport && (!formData.mediaFiles || formData.mediaFiles.length === 0)}
                     iconName={currentStep === totalSteps ? 'Send' : 'ArrowRight'}
                     iconPosition="right"
-                    className="flex-1 sm:flex-none sm:min-w-[120px]"
+                    className={`flex-1 sm:flex-none sm:min-w-[150px] font-bold rounded-xl shadow-md ${
+                      isQuickReport ? 'bg-primary text-white hover:bg-primary/90' : ''
+                    }`}
                   >
-                    {currentStep === totalSteps ? (isSubmitting ? t('submitting', 'Submitting...') : t('submitReport', 'Submit Report')) : t('next', 'Next')}
+                    {currentStep === totalSteps
+                      ? (isSubmitting 
+                          ? t('submitting', 'Submitting...') 
+                          : (isQuickReport 
+                              ? (formData.mediaFiles?.length > 0 ? 'Submit Rapid Verification' : 'Capture Photo to Submit') 
+                              : t('submitReport', 'Submit Report')))
+                      : t('next', 'Next')
+                    }
                   </Button>
                 </div>
               </div>

@@ -101,16 +101,16 @@ const Header = ({ user = null, onLogout = () => {} }) => {
           {/* Logo Section */}
           <div 
             onClick={() => navigate(currentUser?.role === 'official' ? '/official-console' : '/main-dashboard')}
-            className="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer select-none"
+            className="flex items-center space-x-2 sm:space-x-2.5 cursor-pointer select-none flex-shrink-0"
           >
-            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 bg-primary rounded-lg shadow-xs flex-shrink-0">
-              <Icon name="Waves" size={22} color="white" />
+            <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-xl shadow-xs flex-shrink-0">
+              <Icon name="Waves" size={20} color="white" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-base sm:text-lg font-bold text-primary leading-tight">
+              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-primary leading-tight">
                 {t('appName', 'OceanSaksham')}
               </h1>
-              <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate max-w-[140px] sm:max-w-none">
+              <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block">
                 {t('tagline', 'Coastal Hazard Management')}
               </p>
             </div>
@@ -139,20 +139,20 @@ const Header = ({ user = null, onLogout = () => {} }) => {
             </nav>
           )}
 
-          {/* Right Section - Language, User Identity Pill & Direct Logout */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2">
+          {/* Right Section - Language, User Identity & Logout */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
             {/* Quick Language Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 transition-colors"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-300 rounded-xl text-[11px] sm:text-xs font-bold text-slate-900 transition-colors cursor-pointer"
                 title="Change Language"
                 aria-label="Change Language"
               >
-                <Icon name="Globe" size={13} className="text-primary" />
-                <span>{currentLangObj.nativeName}</span>
-                <Icon name={isLangMenuOpen ? "ChevronUp" : "ChevronDown"} size={12} className="text-slate-600" />
+                <Icon name="Globe" size={13} className="text-primary flex-shrink-0" />
+                <span className="max-w-[45px] sm:max-w-none truncate">{currentLangObj.nativeName}</span>
+                <Icon name={isLangMenuOpen ? "ChevronUp" : "ChevronDown"} size={11} className="text-slate-600 flex-shrink-0" />
               </button>
 
               {/* Language Selection Popover */}
@@ -183,11 +183,22 @@ const Header = ({ user = null, onLogout = () => {} }) => {
 
             {isAuthenticated ? (
               <div className="flex items-center space-x-1.5 sm:space-x-2">
-                {/* Clickable User Pill -> Opens Profile & Settings */}
+                {/* Mobile: Compact Avatar Button */}
                 <button
                   type="button"
                   onClick={() => setIsProfileModalOpen(true)}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 hover:border-slate-300 rounded-full transition-all cursor-pointer text-left group"
+                  className="sm:hidden w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs shadow-xs hover:scale-105 transition-transform cursor-pointer flex-shrink-0"
+                  title="Profile & Settings"
+                  aria-label="Open profile modal"
+                >
+                  {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </button>
+
+                {/* Desktop: Full User Pill */}
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 hover:border-slate-300 rounded-full transition-all cursor-pointer text-left group"
                   title="Click to view Profile & Settings"
                   aria-label="Open user profile and settings"
                 >
@@ -195,17 +206,17 @@ const Header = ({ user = null, onLogout = () => {} }) => {
                     {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-xs font-bold text-slate-900 leading-none group-hover:text-primary transition-colors max-w-[70px] sm:max-w-[100px] truncate">
+                    <span className="text-xs font-bold text-slate-900 leading-none group-hover:text-primary transition-colors max-w-[110px] truncate">
                       {currentUser?.name || 'User'}
                     </span>
                     <span className="text-[10px] font-semibold text-primary capitalize leading-tight">
                       {currentUser?.role === 'official' ? t('official', 'Official') : t('citizen', 'Citizen')}
                     </span>
                   </div>
-                  <Icon name="ChevronDown" size={12} className="text-slate-500 group-hover:text-slate-800 transition-colors hidden sm:inline" />
+                  <Icon name="ChevronDown" size={12} className="text-slate-500 group-hover:text-slate-800 transition-colors" />
                 </button>
 
-                {/* Direct Logout Button */}
+                {/* Logout Button: Icon on mobile, Button on desktop */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -213,7 +224,8 @@ const Header = ({ user = null, onLogout = () => {} }) => {
                   onClick={handleLogout}
                   loading={isLoggingOut}
                   disabled={isLoggingOut}
-                  className="rounded-xl border-slate-300 text-slate-700 hover:text-error hover:border-error/50 hover:bg-error/5 text-xs font-semibold px-2 sm:px-3"
+                  className="rounded-xl border-slate-300 text-slate-700 hover:text-error hover:border-error/50 hover:bg-error/5 text-xs font-semibold px-2 sm:px-3 h-8 flex-shrink-0"
+                  aria-label="Logout"
                 >
                   <span className="hidden sm:inline">{t('logout', 'Logout')}</span>
                 </Button>

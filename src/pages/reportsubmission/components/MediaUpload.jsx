@@ -9,6 +9,8 @@ const MediaUpload = ({
   onFilesChange, 
   maxFiles = 5,
   maxFileSize = 10 * 1024 * 1024, // 10MB
+  isQuickReport = false,
+  hazardInfo = null,
   className = '' 
 }) => {
   const { t } = useTranslation();
@@ -24,6 +26,13 @@ const MediaUpload = ({
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
+  // Auto-launch camera in Quick Report mode if no file is captured yet
+  useEffect(() => {
+    if (isQuickReport && uploadedFiles?.length === 0 && !isCapturing) {
+      startCamera();
+    }
+  }, [isQuickReport]);
 
   const acceptedTypes = {
     'image/jpeg': '.jpg,.jpeg',
@@ -82,6 +91,15 @@ const MediaUpload = ({
     return errors;
   };
 
+  const readFileAsDataUrl = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const processGeotaggedFile = async (file, location = null) => {
     const currentLocation = location || await getCurrentLocation();
     
@@ -97,13 +115,19 @@ const MediaUpload = ({
       }
     }
 
+    // Convert file to persistent Data URL for storage & cross-user display
+    let dataUrl = null;
+    if (file?.type?.startsWith('image/')) {
+      dataUrl = await readFileAsDataUrl(file);
+    }
+
     return {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      file,
       name: file.name,
       size: file.size,
       type: file.type,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      url: dataUrl,
+      preview: dataUrl,
       uploadedAt: new Date().toISOString(),
       geotagged: !!currentLocation,
       location: currentLocation ? {
@@ -204,25 +228,36 @@ const MediaUpload = ({
       canvas.height = video.videoHeight || 480;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      canvas.toBlob(async (blob) => {
-        if (blob && uploadedFiles?.length < maxFiles) {
-          try {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const fileName = `camera_capture_${timestamp}.jpg`;
-            const file = new File([blob], fileName, { type: 'image/jpeg' });
-
-            const geotaggedPhoto = await processGeotaggedFile(file, captureLocation);
-            onFilesChange([...uploadedFiles, geotaggedPhoto]);
-            stopCamera();
-          } catch (error) {
-            console.error('Error processing captured photo:', error);
-            setErrors(['Failed to process captured photo.']);
-          }
-        } else if (uploadedFiles?.length >= maxFiles) {
-          setErrors([t('maxFilesAllowed', 'Maximum 5 files allowed')]);
-        }
-      }, 'image/jpeg', 0.85);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       
+      if (uploadedFiles?.length < maxFiles) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `live_camera_${timestamp}.jpg`;
+        
+        const geotaggedPhoto = {
+          id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: fileName,
+          size: Math.round(dataUrl.length * 0.75),
+          type: 'image/jpeg',
+          url: dataUrl,
+          preview: dataUrl,
+          uploadedAt: new Date().toISOString(),
+          geotagged: !!captureLocation,
+          location: captureLocation ? {
+            latitude: captureLocation.latitude,
+            longitude: captureLocation.longitude,
+            accuracy: captureLocation.accuracy,
+            timestamp: captureLocation.timestamp,
+            source: captureLocation.source || 'GPS'
+          } : null,
+          address: null
+        };
+
+        onFilesChange([...uploadedFiles, geotaggedPhoto]);
+        stopCamera();
+      } else {
+        setErrors([t('maxFilesAllowed', 'Maximum 5 files allowed')]);
+      }
     } catch (error) {
       console.error('Photo capture error:', error);
       setErrors(['Failed to capture photo. Please try again.']);
@@ -348,85 +383,131 @@ const MediaUpload = ({
 
   return (
     <div className={`space-y-4 md:space-y-6 ${className}`}>
-      <div className="text-center mb-4 md:mb-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-1.5">
-          {t('uploadGeotaggedMedia', 'Upload Geotagged Media')}
-        </h2>
-        <p className="text-sm font-medium text-slate-600">
-          {t('uploadMediaDesc', 'Add photos or videos with location data to support your report')}
-        </p>
-      </div>
-      
-      {/* Camera and File Upload Buttons */}
-      <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6">
-        <button
-          type="button"
-          onClick={startCamera}
-          disabled={uploadedFiles?.length >= maxFiles}
-          className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-            <Icon name="Camera" size={20} />
+      {isQuickReport ? (
+        /* Rapid Ground Verification Header */
+        <div className="text-center mb-4 md:mb-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 border border-amber-300 rounded-full text-xs font-bold text-amber-900 mb-2">
+            <Icon name="Zap" size={13} className="text-amber-700" />
+            <span>Rapid Ground Verification Mode</span>
           </div>
-          <span className="font-bold text-sm text-slate-900">{t('takePhoto', 'Take Photo')}</span>
-          <span className="text-xs font-semibold text-primary">{t('liveGeotag', 'Live Geotag')}</span>
-        </button>
-        
-        <button
-          type="button"
-          onClick={openFileDialog}
-          disabled={uploadedFiles?.length >= maxFiles}
-          className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-            <Icon name="Upload" size={20} />
-          </div>
-          <span className="font-bold text-sm text-slate-900">{t('uploadFiles', 'Upload Files')}</span>
-          <span className="text-xs font-semibold text-emerald-700">{t('autoGeotag', 'Auto Geotag')}</span>
-        </button>
-      </div>
-      
-      {/* Upload Area */}
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`
-          relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200
-          ${isDragOver 
-            ? 'border-primary bg-blue-50 scale-[1.01]' 
-            : 'border-slate-300 bg-white hover:border-primary/50 hover:bg-slate-50'
-          }
-        `}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={Object.values(acceptedTypes)?.join(',')}
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-
-        <div className="space-y-2">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-            <Icon name="UploadCloud" size={24} />
-          </div>
-
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm md:text-base">
-              {isDragOver ? t('dropFilesHere', 'Drop files here') : t('dragDropFiles', 'Or drag and drop files')}
-            </h3>
-            <p className="text-xs font-semibold text-slate-600 mt-1">
-              {t('autoGeotagNotice', 'Files will be automatically geotagged with your current location')}
-            </p>
-          </div>
-
-          <p className="text-xs font-semibold text-slate-500 pt-1">
-            {t('supportedFormats', 'Supported: JPG, PNG, WebP, MP4, WebM, MOV (Max 10MB)')}
+          <h2 className="text-xl font-bold text-slate-900 mb-1">
+            Capture Live Ground Photo
+          </h2>
+          <p className="text-xs sm:text-sm font-medium text-slate-600 max-w-md mx-auto">
+            Live camera evidence is required to confirm this active incident in real-time.
           </p>
         </div>
-      </div>
+      ) : (
+        /* Regular Report Header */
+        <div className="text-center mb-4 md:mb-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-1.5">
+            {t('uploadGeotaggedMedia', 'Upload Geotagged Media')}
+          </h2>
+          <p className="text-sm font-medium text-slate-600">
+            {t('uploadMediaDesc', 'Add photos or videos with location data to support your report')}
+          </p>
+        </div>
+      )}
+
+      {/* Quick Report Camera Mode VS Standard Upload Buttons */}
+      {isQuickReport ? (
+        <div className="space-y-3">
+          {uploadedFiles?.length === 0 && (
+            <button
+              type="button"
+              onClick={startCamera}
+              className="w-full flex flex-col items-center justify-center p-6 sm:p-8 rounded-3xl border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all text-slate-900 shadow-sm group cursor-pointer"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <Icon name="Camera" size={32} />
+              </div>
+              <span className="font-extrabold text-base text-slate-900">Open Camera for Live Photo</span>
+              <span className="text-xs font-bold text-primary mt-1">Automatic GPS Watermarking Active</span>
+            </button>
+          )}
+
+          {/* Anti-Spoofing Policy Banner */}
+          <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-900 font-medium flex items-start gap-2.5">
+            <Icon name="ShieldCheck" size={16} className="text-blue-700 mt-0.5 flex-shrink-0" />
+            <span>
+              <strong>Ground-Truth Protection:</strong> Gallery/File uploads are disabled in Rapid Verification mode to prevent outdated or downloaded image spoofing.
+            </span>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Camera and File Upload Buttons */}
+          <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6">
+            <button
+              type="button"
+              onClick={startCamera}
+              disabled={uploadedFiles?.length >= maxFiles}
+              className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                <Icon name="Camera" size={20} />
+              </div>
+              <span className="font-bold text-sm text-slate-900">{t('takePhoto', 'Take Photo')}</span>
+              <span className="text-xs font-semibold text-primary">{t('liveGeotag', 'Live Geotag')}</span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={openFileDialog}
+              disabled={uploadedFiles?.length >= maxFiles}
+              className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                <Icon name="Upload" size={20} />
+              </div>
+              <span className="font-bold text-sm text-slate-900">{t('uploadFiles', 'Upload Files')}</span>
+              <span className="text-xs font-semibold text-emerald-700">{t('autoGeotag', 'Auto Geotag')}</span>
+            </button>
+          </div>
+          
+          {/* Upload Area */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`
+              relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200
+              ${isDragOver 
+                ? 'border-primary bg-blue-50 scale-[1.01]' 
+                : 'border-slate-300 bg-white hover:border-primary/50 hover:bg-slate-50'
+              }
+            `}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={Object.values(acceptedTypes)?.join(',')}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <div className="space-y-2">
+              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                <Icon name="UploadCloud" size={24} />
+              </div>
+
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm md:text-base">
+                  {isDragOver ? t('dropFilesHere', 'Drop files here') : t('dragDropFiles', 'Or drag and drop files')}
+                </h3>
+                <p className="text-xs font-semibold text-slate-600 mt-1">
+                  {t('autoGeotagNotice', 'Files will be automatically geotagged with your current location')}
+                </p>
+              </div>
+
+              <p className="text-xs font-semibold text-slate-500 pt-1">
+                {t('supportedFormats', 'Supported: JPG, PNG, WebP, MP4, WebM, MOV (Max 10MB)')}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
       
       {/* Error Messages */}
       {errors?.length > 0 && (
