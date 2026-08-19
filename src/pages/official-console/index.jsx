@@ -75,9 +75,29 @@ const OfficialConsole = () => {
     setIsLoading(true);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Fetch latest WhatsApp reports from local server or static sync feed
+      try {
+        const endpoints = ['http://localhost:5000/api/reports', '/whatsapp_reports.json', '/api/reports'];
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep);
+            if (res.ok) {
+              const liveReports = await res.json();
+              if (Array.isArray(liveReports) && liveReports.length > 0) {
+                const existing = localDb.getCollection('userReports') || [];
+                liveReports.forEach(incoming => {
+                  if (incoming?.id && !existing.some(r => r.id === incoming.id)) {
+                    localDb.insert('userReports', incoming);
+                    localDb.insert('pendingVerification', incoming);
+                  }
+                });
+                break;
+              }
+            }
+          } catch {}
+        }
+      } catch {}
+
       const allReports = loadAllReportsForVerification();
       const allSosAlerts = sosService.getSosAlerts()
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));

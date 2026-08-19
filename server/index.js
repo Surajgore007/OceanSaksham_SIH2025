@@ -38,14 +38,16 @@ function saveReportsToFile() {
 
 // Coastal Knowledge Base & Keywords
 const COASTAL_KB = [
-  { name: 'Juhu Beach, Mumbai', keywords: ['juhu'], lat: 19.0988, lng: 72.8267 },
-  { name: 'Versova Beach, Mumbai', keywords: ['versova'], lat: 19.1317, lng: 72.8136 },
-  { name: 'Marine Drive, Mumbai', keywords: ['marine drive', 'chowpatty'], lat: 18.9438, lng: 72.8233 },
-  { name: 'Aksa Beach, Mumbai', keywords: ['aksa'], lat: 19.1760, lng: 72.7950 },
-  { name: 'Marina Beach, Chennai', keywords: ['marina'], lat: 13.0500, lng: 80.2824 },
-  { name: 'Calangute Beach, Goa', keywords: ['calangute', 'baga'], lat: 15.5439, lng: 73.7553 },
-  { name: 'Puri Beach, Odisha', keywords: ['puri'], lat: 19.7983, lng: 85.8249 },
-  { name: 'RK Beach, Vizag', keywords: ['vizag', 'rk beach'], lat: 17.7126, lng: 83.3182 }
+  { name: 'Juhu Beach, Mumbai', keywords: ['juhu', 'juhu beach'], lat: 19.0988, lng: 72.8267 },
+  { name: 'Versova Beach, Mumbai', keywords: ['versova', 'versova beach'], lat: 19.1317, lng: 72.8136 },
+  { name: 'Marine Drive, Mumbai', keywords: ['marine drive', 'nariman point', 'chowpatty', 'mumbai'], lat: 18.9438, lng: 72.8233 },
+  { name: 'Aksa Beach, Mumbai', keywords: ['aksa', 'aksa beach', 'malad'], lat: 19.1760, lng: 72.7950 },
+  { name: 'Gateway of India, Mumbai', keywords: ['gateway', 'colaba'], lat: 18.9220, lng: 72.8347 },
+  { name: 'Marina Beach, Chennai', keywords: ['marina', 'marina beach', 'chennai'], lat: 13.0500, lng: 80.2824 },
+  { name: 'Calangute Beach, Goa', keywords: ['calangute', 'baga', 'goa'], lat: 15.5439, lng: 73.7553 },
+  { name: 'Puri Beach, Odisha', keywords: ['puri', 'odisha'], lat: 19.7983, lng: 85.8249 },
+  { name: 'RK Beach, Vizag', keywords: ['vizag', 'rk beach', 'visakhapatnam'], lat: 17.7126, lng: 83.3182 },
+  { name: 'Kochi Port & Beach, Kerala', keywords: ['kochi', 'cochin', 'kerala'], lat: 9.9656, lng: 76.2422 }
 ];
 
 const HAZARD_MAP = {
@@ -80,6 +82,7 @@ function createReport(hazardType, locName, lat, lng, description, mediaUrl, from
       url: mediaUrl,
       preview: mediaUrl,
       name: `whatsapp_${refId}.jpg`,
+      type: 'image',
       geotagged: true
     }] : [],
     mediaFiles: mediaUrl ? [{ url: mediaUrl, preview: mediaUrl }] : [],
@@ -96,7 +99,7 @@ function createReport(hazardType, locName, lat, lng, description, mediaUrl, from
 
   receivedReports.unshift(report);
   saveReportsToFile();
-  console.log(`\n📢 [NEW WHATSAPP REPORT RECORDED]: Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName}`);
+  console.log(`\n📢 [NEW WHATSAPP REPORT RECORDED]: Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName} | Photo: ${mediaUrl ? 'Yes' : 'No'}`);
   return { report, refId };
 }
 
@@ -112,48 +115,64 @@ function handleWebhook(payload) {
   let session = userSessions.get(from) || { step: 'IDLE' };
   let replyText = '';
 
+  // 1. Reset / Help
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === 'cancel') {
     userSessions.delete(from);
-    replyText = `🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or describe the hazard to begin.`;
-  } else if (lowerBody === 'help' || lowerBody === 'info') {
-    replyText = `🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n` +
-                `1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n` +
-                `2️⃣ *Interactive Menu:* Reply *REPORT*\n` +
-                `3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n` +
-                `📞 *Coast Guard Helpline:* 1078`;
-  } else if (session.step === 'IDLE') {
-    const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
-    const hasHazardKeyword = ['wave', 'flood', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone'].some(k => lowerBody.includes(k));
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or describe the hazard to begin.</Message>
+</Response>`;
+  }
 
-    if (hasHazardKeyword && (matchedLoc || latitude)) {
-      const lat = latitude || matchedLoc?.lat || 19.0760;
-      const lng = longitude || matchedLoc?.lng || 72.8777;
-      const locName = matchedLoc?.name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion'].find(h => lowerBody.includes(h)) || 'high_waves';
+  if (lowerBody === 'help' || lowerBody === 'info') {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n2️⃣ *Interactive Menu:* Reply *REPORT*\n3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n📞 *Coast Guard Helpline:* 1078</Message>
+</Response>`;
+  }
 
-      const { refId } = createReport(hazardType, locName, lat, lng, body, mediaUrl, from);
-      userSessions.delete(from);
+  // 2. Priority Check: Is this a single full NLP text report or photo with location?
+  const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
+  const hasHazardKeyword = ['wave', 'waves', 'flood', 'flooding', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone', 'sea'].some(k => lowerBody.includes(k));
 
-      replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
-                  `📋 *Reference ID:* \`${refId}\`\n` +
-                  `⚠️ *Hazard:* ${hazardType.replace('_', ' ').toUpperCase()}\n` +
-                  `📍 *Location:* ${locName}\n` +
-                  `🌊 *Status:* Received by Official Review Console & Live Map.\n\n` +
-                  `📞 *Emergency Coast Guard:* 1078`;
-    } else {
-      session.step = 'SELECT_HAZARD';
-      userSessions.set(from, session);
-      replyText = `🌊 *Welcome to OceanSaksham Coastal Reporting*\n` +
-                  `_National Ocean Information Services (INCOIS)_\n\n` +
-                  `Please reply with the hazard number:\n\n` +
-                  `1️⃣ 🌊 High Waves / Swell Surge\n` +
-                  `2️⃣ 🌧️ Coastal Flooding\n` +
-                  `3️⃣ 🌀 Storm Surge\n` +
-                  `4️⃣ 🚨 Tsunami Warning\n` +
-                  `5️⃣ 🏖️ Beach Erosion\n` +
-                  `6️⃣ 🆘 Emergency Distress (SOS)\n\n` +
-                  `_Or describe what you see in your own words._`;
-    }
+  // If user sent a full description in ONE message (contains hazard info and/or photo/location)
+  if (hasHazardKeyword || (mediaUrl && (matchedLoc || latitude || body.length > 5))) {
+    const lat = latitude || matchedLoc?.lat || 19.0760;
+    const lng = longitude || matchedLoc?.lng || 72.8777;
+    const locName = payload.Address || matchedLoc?.name || (body.length > 3 ? body : `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion', 'sos'].find(h => lowerBody.includes(h)) || 'high_waves';
+
+    const { refId } = createReport(hazardType, locName, lat, lng, body || 'Photo report submitted', mediaUrl, from);
+    userSessions.delete(from);
+
+    replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
+                `📋 *Reference ID:* \`${refId}\`\n` +
+                `⚠️ *Hazard:* ${hazardType.replace('_', ' ').toUpperCase()}\n` +
+                `📍 *Location:* ${locName}\n` +
+                `${mediaUrl ? '📸 *Evidence:* Photo Attached & Geotagged\n' : ''}\n` +
+                `Disaster management and INCOIS Coastal Control have received your report.\n\n` +
+                `📞 *Emergency Coast Guard:* 1078`;
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${replyText}</Message>
+</Response>`;
+  }
+
+  // 3. Conversational Guided Flow
+  if (session.step === 'IDLE') {
+    session.step = 'SELECT_HAZARD';
+    userSessions.set(from, session);
+    replyText = `🌊 *Welcome to OceanSaksham Coastal Reporting*\n` +
+                `_National Ocean Information Services (INCOIS)_\n\n` +
+                `Please reply with the hazard number:\n\n` +
+                `1️⃣ 🌊 High Waves / Swell Surge\n` +
+                `2️⃣ 🌧️ Coastal Flooding\n` +
+                `3️⃣ 🌀 Storm Surge\n` +
+                `4️⃣ 🚨 Tsunami Warning\n` +
+                `5️⃣ 🏖️ Beach Erosion\n` +
+                `6️⃣ 🆘 Emergency Distress (SOS)\n\n` +
+                `_Or describe what you see in your own words._`;
   } else if (session.step === 'SELECT_HAZARD') {
     const hazardType = HAZARD_MAP[body] || 'high_waves';
     session.hazardType = hazardType;
@@ -202,7 +221,6 @@ function handleWebhook(payload) {
 }
 
 const server = http.createServer((req, res) => {
-  // Enable CORS headers so frontend dashboard can fetch WhatsApp reports in real-time
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

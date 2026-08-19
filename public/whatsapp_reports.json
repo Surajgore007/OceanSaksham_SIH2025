@@ -1,0 +1,58 @@
+[
+  {
+    "id": "wa_1787164644490",
+    "hazardType": "high_waves",
+    "type": "high_waves",
+    "severity": "medium",
+    "description": "Reported via WhatsApp: high_waves at Juhu",
+    "location": {
+      "name": "Juhu",
+      "address": "Juhu",
+      "coordinates": {
+        "lat": 19.076,
+        "lng": 72.8777
+      }
+    },
+    "lat": 19.076,
+    "lng": 72.8777,
+    "media": [],
+    "mediaFiles": [],
+    "source": "whatsapp",
+    "reportedBy": "WhatsApp (+919967603858)",
+    "reportedByRole": "citizen",
+    "reporterName": "WhatsApp User (+919967603858)",
+    "status": "pending_verification",
+    "verificationStatus": "pending",
+    "priority": "normal",
+    "timestamp": "2026-08-19T18:37:24.490Z",
+    "submittedAt": "2026-08-19T18:37:24.490Z"
+  },
+  {
+    "id": "wa_1787164560157",
+    "hazardType": "high_waves",
+    "type": "high_waves",
+    "severity": "medium",
+    "description": "Reported via WhatsApp: high_waves at Juhu beach",
+    "location": {
+      "name": "Juhu beach",
+      "address": "Juhu beach",
+      "coordinates": {
+        "lat": 19.076,
+        "lng": 72.8777
+      }
+    },
+    "lat": 19.076,
+    "lng": 72.8777,
+    "media": [],
+    "mediaFiles": [],
+    "source": "whatsapp",
+    "reportedBy": "WhatsApp (+919967603858)",
+    "reportedByRole": "citizen",
+    "reporterName": "WhatsApp User (+919967603858)",
+    "status": "pending_verification",
+    "verificationStatus": "pending",
+    "priority": "normal",
+    "timestamp": "2026-08-19T18:36:00.157Z",
+    "submittedAt": "2026-08-19T18:36:00.157Z"
+  }
+]
