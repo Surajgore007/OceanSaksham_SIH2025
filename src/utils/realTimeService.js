@@ -73,61 +73,42 @@ class RealTimeService {
    */
   async syncWhatsAppReports() {
     try {
-      // Try local server endpoint first, then public static json file
       const endpoints = [
         'http://localhost:5000/api/reports',
-        '/whatsapp_reports.json',
-        '/api/reports'
+        '/whatsapp_reports.json'
       ];
 
       let newReports = null;
       for (const ep of endpoints) {
         try {
-          const res = await fetch(ep);
+          const res = await fetch(ep, { cache: 'no-store' });
           if (res.ok) {
             newReports = await res.json();
-            if (Array.isArray(newReports) && newReports.length > 0) {
-              break;
-            }
+            if (Array.isArray(newReports) && newReports.length > 0) break;
           }
         } catch {}
       }
 
       if (!Array.isArray(newReports) || newReports.length === 0) return;
 
-      const existingUserReports = localDb.getCollection('userReports') || [];
-      let addedAny = false;
+      // Use in-memory store (window.__waReports) to avoid localStorage 5MB quota
+      if (!window.__waReports) window.__waReports = {};
+      const prevCount = Object.keys(window.__waReports).length;
 
       newReports.forEach(incoming => {
-        if (!incoming?.id) return;
-        const existingIdx = existingUserReports.findIndex(r => r.id === incoming.id);
-        if (existingIdx === -1) {
-          localDb.insert('userReports', incoming);
-          localDb.insert('pendingVerification', incoming);
-          localDb.insert('pendingReports', incoming);
-          addedAny = true;
-        } else {
-          // If incoming report has media and local version doesn't, update local version!
-          const existing = existingUserReports[existingIdx];
-          const incomingHasMedia = (incoming.media && incoming.media.length > 0) || (incoming.mediaFiles && incoming.mediaFiles.length > 0);
-          const existingHasMedia = (existing.media && existing.media.length > 0) || (existing.mediaFiles && existing.mediaFiles.length > 0);
-          if (incomingHasMedia && !existingHasMedia) {
-            localDb.update('userReports', incoming.id, () => incoming);
-            localDb.update('pendingVerification', incoming.id, () => incoming);
-            addedAny = true;
-          }
-        }
+        if (incoming?.id) window.__waReports[incoming.id] = incoming;
       });
 
-      if (addedAny) {
-        const updatedUserReports = localDb.getCollection('userReports');
-        const updatedPending = localDb.getCollection('pendingVerification');
-        this.notifyListeners('reports', updatedUserReports);
-        this.notifyListeners('userReports', updatedUserReports);
-        this.notifyListeners('pendingVerification', updatedPending);
-        this.notifyListeners('hazards', updatedUserReports);
-        console.log('✨ [OceanSaksham Live]: New WhatsApp report synced to Official Console & Map!');
+      const newCount = Object.keys(window.__waReports).length;
+      if (newCount !== prevCount) {
+        console.log(`✨ [OceanSaksham Live]: ${newCount - prevCount} new WhatsApp report(s) synced!`);
       }
+
+      // Always notify so the dashboard re-renders with latest data
+      const allWa = Object.values(window.__waReports);
+      this.notifyListeners('reports', allWa);
+      this.notifyListeners('userReports', allWa);
+      this.notifyListeners('pendingVerification', allWa);
     } catch (e) {
       // Silent catch
     }

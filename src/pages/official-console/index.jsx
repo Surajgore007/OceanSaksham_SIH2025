@@ -85,26 +85,19 @@ const OfficialConsole = () => {
     if (showLoader) setIsLoading(true);
     
     try {
-      // Fetch latest WhatsApp reports from local server or static sync feed
+      // Fetch latest WhatsApp reports into in-memory store (bypasses localStorage 5MB limit)
+      // window.__waReports holds all WhatsApp reports with base64 images in memory
+      if (!window.__waReports) window.__waReports = {};
       try {
-        const endpoints = ['http://localhost:5000/api/reports', '/whatsapp_reports.json', '/api/reports'];
+        const endpoints = ['http://localhost:5000/api/reports', '/whatsapp_reports.json'];
         for (const ep of endpoints) {
           try {
-            const res = await fetch(ep);
+            const res = await fetch(ep, { cache: 'no-store' });
             if (res.ok) {
               const liveReports = await res.json();
               if (Array.isArray(liveReports) && liveReports.length > 0) {
-                const existing = localDb.getCollection('userReports') || [];
                 liveReports.forEach(incoming => {
-                  if (!incoming?.id) return;
-                  const found = existing.find(r => r.id === incoming.id);
-                  if (!found) {
-                    localDb.insert('userReports', incoming);
-                    localDb.insert('pendingVerification', incoming);
-                  } else {
-                    localDb.update('userReports', incoming.id, () => incoming);
-                    localDb.update('pendingVerification', incoming.id, () => incoming);
-                  }
+                  if (incoming?.id) window.__waReports[incoming.id] = incoming;
                 });
                 break;
               }
@@ -145,8 +138,17 @@ const OfficialConsole = () => {
   };
 
   const loadAllReportsForVerification = () => {
-    // Load all reports from canonical shared collection
-    const userReports = localDb.getCollection('userReports') || [];
+    // Load from localStorage (regular web reports)
+    const localUserReports = localDb.getCollection('userReports') || [];
+    // Merge with in-memory WhatsApp reports (stored here to avoid localStorage 5MB quota)
+    const waReports = window.__waReports ? Object.values(window.__waReports) : [];
+    // Merge: waReports first so they appear at top, then local reports, deduped by id
+    const seenIds = new Set();
+    const userReports = [...waReports, ...localUserReports].filter(r => {
+      if (!r?.id || seenIds.has(r.id)) return false;
+      seenIds.add(r.id);
+      return true;
+    });
 
     // Demo data for demonstration purposes - Critical alerts near Mumbai coast
     const demoReports = [
