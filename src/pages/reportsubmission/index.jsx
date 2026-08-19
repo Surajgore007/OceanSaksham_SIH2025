@@ -441,7 +441,7 @@ const ReportSubmission = () => {
 
         {/* Enhanced Success Modal */}
         {showSuccessModal && (
-          <div className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-black/50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full shadow-modal">
               <div className="text-center">
                 <div className="w-16 h-16 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-4">

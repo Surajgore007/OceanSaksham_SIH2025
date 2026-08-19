@@ -93,7 +93,7 @@ const Header = ({ user = null, onLogout = () => {} }) => {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-100 bg-card border-b border-border shadow-card">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-card border-b border-border shadow-card">
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Logo Section */}
         <div className="flex items-center space-x-3">
@@ -191,9 +191,9 @@ const Header = ({ user = null, onLogout = () => {} }) => {
 
               {/* Mobile Menu Overlay */}
               {isMenuOpen && (
-                <div className="fixed inset-0 z-200 md:hidden">
+                <div className="fixed inset-0 z-50 md:hidden">
                   <div className="fixed inset-0 bg-black/50" onClick={() => setIsMenuOpen(false)} />
-                  <div className="fixed top-16 right-0 w-80 max-w-[90vw] h-[calc(100vh-4rem)] bg-card border-l border-border shadow-modal">
+                  <div className="fixed top-16 right-0 left-0 w-full max-w-[100vw] h-[calc(100vh-4rem)] bg-card border-t border-border shadow-modal md:border-l md:top-16 md:right-0 md:left-auto md:w-80">
                     <div className="flex flex-col h-full">
                       {/* User Info */}
                       <div className="p-4 border-b border-border">
