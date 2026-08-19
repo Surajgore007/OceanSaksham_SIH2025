@@ -17,7 +17,7 @@ import { useTranslation } from '../../context/LanguageContext';
 const MainDashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => authService?.getCurrentUser());
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [activeView, setActiveView] = useState('map'); // 'map', 'overview', 'hotspots'
   const [filters, setFilters] = useState({
@@ -58,8 +58,8 @@ const MainDashboard = () => {
       }, 5000);
 
       return () => {
-        unsubscribeStats();
-        unsubscribeReports();
+        if (typeof unsubscribeStats === 'function') unsubscribeStats();
+        if (typeof unsubscribeReports === 'function') unsubscribeReports();
         clearInterval(statusInterval);
         realTimeService?.stop();
       };
@@ -168,8 +168,10 @@ const MainDashboard = () => {
         return false;
       }
       if (filters?.timeRange) {
-        const timestamp = hazard?.timestamp instanceof Date ? hazard?.timestamp : new Date(hazard?.timestamp);
-        const hoursDiff = (Date.now() - timestamp?.getTime()) / (1000 * 60 * 60);
+        const rawTime = hazard?.timestamp;
+        const timestamp = rawTime instanceof Date ? rawTime : new Date(rawTime || Date.now());
+        const timeVal = !isNaN(timestamp?.getTime?.()) ? timestamp.getTime() : Date.now();
+        const hoursDiff = (Date.now() - timeVal) / (1000 * 60 * 60);
         if (hoursDiff > filters?.timeRange) {
           return false;
         }

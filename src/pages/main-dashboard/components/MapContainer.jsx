@@ -513,7 +513,10 @@ const MapContainer = ({
         return false;
       }
       if (filters?.timeRange) {
-        const hoursDiff = (Date.now() - hazard?.timestamp?.getTime()) / (1000 * 60 * 60);
+        const rawTime = hazard?.timestamp;
+        const timestamp = rawTime instanceof Date ? rawTime : new Date(rawTime || Date.now());
+        const timeVal = !isNaN(timestamp?.getTime?.()) ? timestamp.getTime() : Date.now();
+        const hoursDiff = (Date.now() - timeVal) / (1000 * 60 * 60);
         if (hoursDiff > filters?.timeRange) {
           return false;
         }

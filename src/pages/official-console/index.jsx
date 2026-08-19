@@ -38,6 +38,7 @@ const OfficialConsole = () => {
   const [filteredReports, setFilteredReports] = useState([]);
   const [selectedReports, setSelectedReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [selectedMedia, setSelectedMedia] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isHotspotModalOpen, setIsHotspotModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState('timestamp');
@@ -1185,6 +1186,55 @@ const OfficialConsole = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Attached Evidence & Photos Gallery */}
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3 flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <Icon name="Camera" size={18} className="text-primary" />
+                            Evidence & Photos ({selectedReport?.media?.length || selectedReport?.mediaFiles?.length || 0})
+                          </span>
+                        </h3>
+                        {((selectedReport?.media && selectedReport?.media?.length > 0) || 
+                          (selectedReport?.mediaFiles && selectedReport?.mediaFiles?.length > 0)) ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-muted/30 rounded-2xl p-4 border border-border">
+                            {(selectedReport?.media || selectedReport?.mediaFiles)?.map((item, index) => {
+                              const mediaSrc = item?.url || item?.preview || (typeof item === 'string' ? item : '');
+                              return (
+                                <div
+                                  key={index}
+                                  onClick={() => setSelectedMedia(item)}
+                                  className="group relative aspect-video bg-black/5 rounded-xl overflow-hidden border border-border cursor-pointer shadow-xs hover:shadow-md transition-all"
+                                >
+                                  {mediaSrc ? (
+                                    <img
+                                      src={mediaSrc}
+                                      alt={`Evidence ${index + 1}`}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                      <Icon name="Image" size={24} />
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <Icon name="Eye" size={20} />
+                                  </div>
+                                  {item?.geotagged && (
+                                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold text-emerald-400">
+                                      📍 GPS Tagged
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-muted/20 border border-border rounded-xl text-center text-xs text-muted-foreground">
+                            No media photos attached to this report.
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Verification Panel (Right Column) */}
@@ -1199,6 +1249,30 @@ const OfficialConsole = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Full-Screen Media Lightbox Modal */}
+        {selectedMedia && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+            <div 
+              className="absolute inset-0"
+              onClick={() => setSelectedMedia(null)}
+            />
+            <div className="relative max-w-4xl max-h-[85vh] z-10 p-2">
+              <img
+                src={selectedMedia?.url || selectedMedia?.preview || (typeof selectedMedia === 'string' ? selectedMedia : '')}
+                alt="Full size evidence"
+                className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-700"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                iconName="X"
+                onClick={() => setSelectedMedia(null)}
+                className="absolute top-4 right-4 bg-black/70 text-white hover:bg-black p-2 rounded-full cursor-pointer"
+              />
             </div>
           </div>
         )}
