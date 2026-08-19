@@ -186,9 +186,7 @@ function escapeXml(str) {
 function twiml(message) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Message>
-    <Body>${escapeXml(message)}</Body>
-  </Message>
+  <Message>${message}</Message>
 </Response>`;
 }
 
