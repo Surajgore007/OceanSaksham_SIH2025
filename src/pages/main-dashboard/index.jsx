@@ -12,8 +12,10 @@ import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
 import authService from '../../utils/authService';
 import realTimeService from '../../utils/realTimeService';
+import { useTranslation } from '../../context/LanguageContext';
 
 const MainDashboard = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -87,23 +89,37 @@ const MainDashboard = () => {
 
   // Enhanced quick report handler that can pre-fill data
   const handleQuickReport = (sourceHazard = null) => {
-    if (sourceHazard) {
+    // Verify sourceHazard is an actual hazard object and not a synthetic DOM click event
+    const isActualHazard = sourceHazard && 
+      typeof sourceHazard === 'object' && 
+      !sourceHazard.nativeEvent && 
+      !sourceHazard.target && 
+      (sourceHazard.lat != null || sourceHazard.latitude != null || sourceHazard.type || sourceHazard.hazardType);
+
+    if (isActualHazard) {
+      const lat = Number(sourceHazard.lat ?? sourceHazard.latitude ?? 0);
+      const lng = Number(sourceHazard.lng ?? sourceHazard.longitude ?? 0);
+      const hazardType = sourceHazard.type || sourceHazard.hazardType || 'high_waves';
+      const locName = sourceHazard.location || `${lat ? lat.toFixed(4) : '0.0000'}, ${lng ? lng.toFixed(4) : '0.0000'}`;
+
       // Pre-fill report data from hotspot/hazard
       const preFilledData = {
-        hazardType: sourceHazard.type,
+        hazardType: hazardType,
         location: {
           coordinates: {
-            latitude: sourceHazard.lat,
-            longitude: sourceHazard.lng
+            latitude: lat,
+            longitude: lng,
+            lat: lat,
+            lng: lng
           },
-          address: sourceHazard.location || `${sourceHazard.lat.toFixed(4)}, ${sourceHazard.lng.toFixed(4)}`,
-          name: sourceHazard.location || 'Similar Location'
+          address: locName,
+          name: locName
         },
-        severity: sourceHazard.severity,
+        severity: sourceHazard.severity || 'medium',
         description: sourceHazard.source === 'official' 
-          ? `Similar incident near ${sourceHazard.location || 'hotspot location'}. Related to existing ${sourceHazard.type.replace('_', ' ')} hazard in this area.`
-          : `Similar incident reported in the same area as previous ${sourceHazard.type.replace('_', ' ')} report.`,
-        relatedToHazard: sourceHazard.id,
+          ? `Similar incident near ${locName}. Related to existing ${hazardType.replace('_', ' ')} hazard in this area.`
+          : `Similar incident reported in the same area as previous ${hazardType.replace('_', ' ')} report.`,
+        relatedToHazard: sourceHazard.id || null,
         isQuickReport: true
       };
       
@@ -112,6 +128,7 @@ const MainDashboard = () => {
       navigate('/report-submission?quick=true');
     } else {
       // Regular quick report
+      localStorage.removeItem('quickReportData');
       navigate('/report-submission');
     }
   };
@@ -166,26 +183,122 @@ const MainDashboard = () => {
   };
 
   return (
-    <AuthenticationGuard user={user} requiredRoles={['citizen']}>
+    <AuthenticationGuard user={user} requiredRoles={['citizen', 'official']}>
       <div className="min-h-screen bg-background flex flex-col">
-        {/* Header with enhanced user management */}
+        {/* Top App Header */}
         <Header user={user} onLogout={handleLogout} />
 
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col pt-14 md:pt-16 overflow-hidden">
-          <div className="flex flex-1 min-h-0">
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col pt-16 pb-16 md:pb-0 overflow-hidden bg-slate-50">
+          {/* Unified Action & View Switcher Bar */}
+          <div className="bg-white border-b border-slate-200 px-2 sm:px-4 md:px-6 py-2 flex-shrink-0 shadow-xs">
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 max-w-7xl mx-auto">
+              {/* Segmented View Switcher */}
+              <div className="flex items-center bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200 overflow-x-auto no-scrollbar max-w-[calc(100%-110px)] sm:max-w-none">
+                <button
+                  type="button"
+                  onClick={() => setActiveView('map')}
+                  className={`
+                    flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap
+                    ${activeView === 'map'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                    }
+                  `}
+                >
+                  <Icon name="Map" size={13} />
+                  <span>{t('liveMap', 'Live Map')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveView('overview')}
+                  className={`
+                    flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap
+                    ${activeView === 'overview'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                    }
+                  `}
+                >
+                  <Icon name="BarChart3" size={13} />
+                  <span>{t('overview', 'Overview')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveView('hotspots')}
+                  className={`
+                    flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap
+                    ${activeView === 'hotspots'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                    }
+                  `}
+                >
+                  <Icon name="MapPin" size={13} />
+                  <span>{t('hotspots', 'Hotspots')}</span>
+                </button>
+              </div>
+
+              {/* Action Controls & Live Status */}
+              <div className="flex items-center space-x-1.5 flex-shrink-0">
+                {/* Filter Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleFilterPanel}
+                  className={`
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all
+                    ${isFilterPanelOpen || (filters?.types?.length || 0) > 0 || (filters?.severity?.length || 0) > 0 || filters?.timeRange !== 24
+                      ? 'bg-blue-50 border-blue-600 text-blue-950 shadow-xs'
+                      : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                    }
+                  `}
+                  aria-label="Toggle hazard filters"
+                >
+                  <Icon name="Filter" size={14} />
+                  <span className="hidden sm:inline">{t('filters', 'Filters')}</span>
+                  {((filters?.types?.length || 0) > 0 || (filters?.severity?.length || 0) > 0 || filters?.timeRange !== 24) && (
+                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                  )}
+                </button>
+
+                {/* Status Dot + Refresh */}
+                <div className="flex items-center space-x-1.5 pl-1">
+                  <div 
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      connectionStatus?.isConnected ? 'bg-green-600 pulse-indicator' : 'bg-slate-400'
+                    }`}
+                    title={connectionStatus?.isConnected ? t('live', 'Live Simulation Active') : t('offline', 'Offline')}
+                  />
+                  <button
+                    type="button"
+                    onClick={forceRefreshData}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
+                    title={t('refresh', 'Refresh data')}
+                    aria-label="Refresh data"
+                  >
+                    <Icon name="RefreshCw" size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-1 min-h-0 relative">
             {/* Desktop Filter Panel */}
             <div className="hidden md:block flex-shrink-0">
               <FilterPanel
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
-                isOpen={true}
+                isOpen={isFilterPanelOpen}
+                onToggle={toggleFilterPanel}
                 resultCount={getFilteredHazardCount()}
                 className="h-full"
               />
             </div>
 
-            {/* Mobile Filter Panel */}
+            {/* Mobile Filter Drawer */}
             <FilterPanel
               filters={filters}
               onFiltersChange={handleFiltersChange}
@@ -196,107 +309,27 @@ const MainDashboard = () => {
             />
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-              {/* Enhanced View Toggle Bar */}
-              <div className="bg-card border-b border-border px-3 md:px-4 py-2 flex-shrink-0">
-                <div className="flex items-center justify-between max-w-full overflow-hidden">
-                  <div className="flex items-center space-x-1 min-w-0 flex-shrink">
-                    <Button
-                      variant={activeView === 'map' ? 'default' : 'ghost'}
-                      size="sm"
-                      iconName="Map"
-                      iconPosition="left"
-                      onClick={() => setActiveView('map')}
-                      className="text-xs md:text-sm whitespace-nowrap"
-                    >
-                      <span className="hidden sm:inline">Live </span>Map
-                    </Button>
-                    <Button
-                      variant={activeView === 'overview' ? 'default' : 'ghost'}
-                      size="sm"
-                      iconName="BarChart3"
-                      iconPosition="left"
-                      onClick={() => setActiveView('overview')}
-                      className="text-xs md:text-sm"
-                    >
-                      Overview
-                    </Button>
-                    <Button
-                      variant={activeView === 'hotspots' ? 'default' : 'ghost'}
-                      size="sm"
-                      iconName="MapPin"
-                      iconPosition="left"
-                      onClick={() => setActiveView('hotspots')}
-                      className="text-xs md:text-sm"
-                    >
-                      Hotspots
-                    </Button>
-                  </div>
-
-                  <div className="hidden md:flex items-center space-x-3 flex-shrink-0">
-                    {/* Real-time Status */}
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        connectionStatus?.isConnected ? 'bg-success pulse-indicator' : 'bg-error'
-                      }`}></div>
-                      <span className="text-xs text-muted-foreground">
-                        {connectionStatus?.isConnected ? 'Live' : 'Offline'}
-                      </span>
-                    </div>
-
-                    {/* Refresh Button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconName="RefreshCw"
-                      onClick={forceRefreshData}
-                      className="text-xs"
-                    >
-                      Refresh
-                    </Button>
-
-                    {/* Last Update Time */}
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      Updated: {new Date()?.toLocaleTimeString()}
-                    </span>
-                  </div>
-
-                  {/* Mobile Status Indicator */}
-                  <div className="md:hidden flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      connectionStatus?.isConnected ? 'bg-success pulse-indicator' : 'bg-error'
-                    }`}></div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconName="RefreshCw"
-                      onClick={forceRefreshData}
-                      className="p-1"
-                    />
-                  </div>
-                </div>
-              </div>
-
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
               {/* Content Views */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden relative">
                 {activeView === 'map' && (
                   <MapContainer
                     filters={filters}
                     onMarkerClick={handleMarkerClick}
                     onLocationUpdate={handleLocationUpdate}
                     onQuickReport={handleQuickReport}
-                    showQuickReport={true}
+                    showQuickReport={false}
                   />
                 )}
 
                 {activeView === 'overview' && (
-                  <div className="h-full overflow-y-auto p-3 md:p-4">
-                    <StatusOverview realTimeStats={realTimeStats} />
+                  <div className="h-full overflow-y-auto p-4 md:p-6 max-w-6xl mx-auto w-full">
+                    <StatusOverview stats={realTimeStats} />
                   </div>
                 )}
 
                 {activeView === 'hotspots' && (
-                  <div className="h-full overflow-y-auto p-3 md:p-4">
+                  <div className="h-full overflow-y-auto p-4 md:p-6 max-w-6xl mx-auto w-full">
                     <HotspotClusters
                       onClusterClick={handleClusterClick}
                       onZoomToCluster={handleZoomToCluster}
@@ -310,162 +343,117 @@ const MainDashboard = () => {
           {/* Enhanced Selected Hazard Details Modal */}
           {selectedHazard && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedHazard(null)} />
-              <div className="relative bg-card border border-border rounded-lg shadow-modal w-full max-w-md max-h-[90vh] overflow-y-auto mx-4">
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <h3 className="font-semibold text-foreground">Hazard Details</h3>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedHazard(null);
+                }} 
+              />
+              
+              {/* Modal Card */}
+              <div 
+                className="relative z-10 bg-white border-2 border-slate-200 rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto mx-4 p-5 sm:p-6 animate-in fade-in zoom-in-95 duration-150 text-slate-900"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
                   <div className="flex items-center space-x-2">
-                    {/* Real-time indicator */}
-                    <div className="w-2 h-2 bg-success rounded-full pulse-indicator"></div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      iconName="X"
-                      onClick={() => setSelectedHazard(null)}
-                    />
+                    <div className="w-2.5 h-2.5 bg-green-600 rounded-full pulse-indicator" />
+                    <h3 className="font-bold text-slate-900 text-base">{t('hazardDetails', 'Hazard Details')}</h3>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedHazard(null);
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    aria-label="Close hazard details"
+                  >
+                    <Icon name="X" size={18} />
+                  </button>
                 </div>
                 
-                <div className="p-4 space-y-4">
+                <div className="space-y-4">
                   <div className="flex items-center space-x-3">
                     <div className={`
-                      flex items-center justify-center w-12 h-12 rounded-full
-                      ${selectedHazard?.severity === 'critical' ? 'bg-error/10 text-error' :
-                        selectedHazard?.severity === 'high' ? 'bg-warning/10 text-warning' :
-                        selectedHazard?.severity === 'medium'? 'bg-secondary/10 text-secondary' : 'bg-success/10 text-success'}
+                      flex items-center justify-center w-12 h-12 rounded-2xl
+                      ${selectedHazard?.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                        selectedHazard?.severity === 'high' ? 'bg-amber-100 text-amber-700' :
+                        selectedHazard?.severity === 'medium'? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}
                     `}>
                       <Icon 
                         name={selectedHazard?.type === 'tsunami' ? 'Waves' : 
-                              selectedHazard?.type === 'flooding' ? 'CloudRain' :
+                              selectedHazard?.type === 'flooding' || selectedHazard?.type === 'flood' ? 'CloudRain' :
                               selectedHazard?.type === 'high_waves' ? 'Wind' : 'Zap'} 
                         size={24} 
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-foreground capitalize truncate">
-                        {selectedHazard?.type?.replace('_', ' ')}
+                      <h4 className="font-bold text-slate-900 capitalize truncate text-base">
+                        {t(selectedHazard?.type, selectedHazard?.type?.replace('_', ' '))}
                       </h4>
-                      <p className="text-sm text-muted-foreground truncate">{selectedHazard?.location}</p>
-                      <p className="text-xs text-primary">
-                        {selectedHazard?.source === 'citizen' ? 'Citizen Report' : 'Official Report'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Severity:</span>
-                      <span className={`
-                        px-2 py-1 rounded-full text-xs font-medium capitalize
-                        ${selectedHazard?.severity === 'critical' ? 'bg-error/10 text-error' :
-                          selectedHazard?.severity === 'high' ? 'bg-warning/10 text-warning' :
-                          selectedHazard?.severity === 'medium'? 'bg-secondary/10 text-secondary' : 'bg-success/10 text-success'}
-                      `}>
-                        {selectedHazard?.severity}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Status:</span>
-                      <span className="text-sm font-medium text-success">Verified</span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Reported:</span>
-                      <span className="text-sm text-foreground">
-                        {selectedHazard?.timestamp?.toLocaleString()}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Coordinates:</span>
-                      <span className="text-sm text-foreground font-mono">
-                        {selectedHazard?.lat?.toFixed(4)}°, {selectedHazard?.lng?.toFixed(4)}°
+                      <p className="text-xs font-semibold text-slate-600 truncate">{selectedHazard?.location}</p>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary mt-0.5">
+                        <Icon name="ShieldCheck" size={12} />
+                        {selectedHazard?.source === 'citizen' ? t('citizenReport', 'Citizen Report') : t('officialHotspot', 'Official Hotspot')}
                       </span>
                     </div>
                   </div>
 
-                  <div>
-                    <h5 className="font-medium text-foreground mb-2">Description</h5>
-                    <p className="text-sm text-muted-foreground">{selectedHazard?.description}</p>
-                  </div>
-
-                  {/* Enhanced Action Buttons */}
-                  <div className="space-y-2">
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        iconName="MapPin"
-                        iconPosition="left"
-                        onClick={() => {
-                          // Navigate to location on map
-                          setActiveView('map');
-                          setSelectedHazard(null);
-                        }}
-                        className="flex-1"
-                      >
-                        View on Map
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        iconName="AlertTriangle"
-                        iconPosition="left"
-                        onClick={() => {
-                          handleQuickReport(selectedHazard);
-                        }}
-                        className="flex-1"
-                      >
-                        Report Similar
-                      </Button>
+                  <div className="bg-slate-50 rounded-xl p-3 space-y-2 text-xs border border-slate-200 font-medium">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">{t('severity', 'Severity')}:</span>
+                      <span className="font-bold capitalize text-slate-900">
+                        {t(selectedHazard?.severity, selectedHazard?.severity)}
+                      </span>
                     </div>
-                    
-                    {/* Smart Quick Report Info */}
-                    {selectedHazard?.source === 'official' && (
-                      <div className="p-3 bg-blue/10 border border-blue/20 rounded-lg">
-                        <div className="flex items-start space-x-2">
-                          <Icon name="Lightbulb" size={14} className="text-blue mt-0.5 flex-shrink-0" />
-                          <div className="text-xs text-blue">
-                            <p className="font-medium mb-1">Smart Quick Report</p>
-                            <p>Click "Report Similar" to create a related incident report with location and hazard type pre-filled from this hotspot.</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">{t('status', 'Status')}:</span>
+                      <span className="font-bold text-green-700">{t('verified', 'Verified')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">{t('coordinates', 'Coordinates')}:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {Number(selectedHazard?.lat || 0).toFixed(4)}°, {Number(selectedHazard?.lng || 0).toFixed(4)}°
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Real-time Update Notifications */}
-          {realTimeStats?.hasUpdates && (
-            <div className="fixed bottom-20 md:bottom-6 right-4 z-150 pointer-events-auto">
-              <div className="bg-primary text-white px-4 py-2 rounded-lg shadow-modal flex items-center space-x-2">
-                <div className="w-2 h-2 bg-white rounded-full pulse-indicator"></div>
-                <span className="text-sm">New updates available</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={forceRefreshData}
-                  className="text-white hover:bg-white/20 h-6 px-2 text-xs"
-                >
-                  Refresh
-                </Button>
-              </div>
-            </div>
-          )}
+                  {selectedHazard?.description && (
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">{t('description', 'Description')}</h5>
+                      <p className="text-sm font-medium text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">{selectedHazard?.description}</p>
+                    </div>
+                  )}
 
-          {/* Quick Report Success Notification */}
-          {quickReportData && (
-            <div className="fixed top-16 md:top-20 right-4 z-150 pointer-events-auto">
-              <div className="bg-success text-white px-4 py-3 rounded-lg shadow-modal max-w-sm">
-                <div className="flex items-start space-x-2">
-                  <Icon name="CheckCircle" size={16} className="mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm">Quick Report Ready!</p>
-                    <p className="text-xs opacity-90">Form pre-filled with hazard location and details.</p>
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      iconName="MapPin"
+                      onClick={() => {
+                        setActiveView('map');
+                        setSelectedHazard(null);
+                      }}
+                      className="flex-1 rounded-xl font-bold border-slate-300 text-slate-800 hover:bg-slate-100"
+                    >
+                      {t('viewOnMap', 'View on Map')}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      iconName="AlertTriangle"
+                      onClick={() => {
+                        handleQuickReport(selectedHazard);
+                        setSelectedHazard(null);
+                      }}
+                      className="flex-1 rounded-xl font-bold bg-primary text-white hover:bg-primary/90"
+                    >
+                      {t('reportSimilar', 'Report Similar')}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -473,6 +461,8 @@ const MainDashboard = () => {
           )}
         </main>
 
+        {/* Mobile Bottom Dock Navigation */}
+        <BottomTabNavigation user={user} />
       </div>
     </AuthenticationGuard>
   );

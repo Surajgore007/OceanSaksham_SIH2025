@@ -4,6 +4,7 @@ import Button from '../../../components/ui/Button';
 import locationService from '../../../utils/locationService';
 import realTimeService from '../../../utils/realTimeService';
 import localDb from '../../../utils/localDb';
+import { useTranslation } from '../../../context/LanguageContext';
 
 const MapContainer = ({ 
   hazardData = [], 
@@ -13,6 +14,7 @@ const MapContainer = ({
   showQuickReport = true,
   onQuickReport = () => {}
 }) => {
+  const { t } = useTranslation();
   const mapRef = useRef(null);
   const googleMapRef = useRef(null);
   const markersRef = useRef([]);
@@ -47,8 +49,14 @@ const MapContainer = ({
         return;
       }
 
+      // Handle Google Maps authentication/billing failures gracefully
+      window.gm_authFailure = () => {
+        console.warn('Google Maps authentication failure (billing or key restriction). Falling back.');
+        setMapLoadTimeout(true);
+      };
+
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}`;
       script.async = true;
       script.defer = true;
       
@@ -79,6 +87,12 @@ const MapContainer = ({
     };
 
     loadGoogleMapsAPI();
+
+    return () => {
+      if (window.gm_authFailure) {
+        delete window.gm_authFailure;
+      }
+    };
   }, []);
 
   const initializeMap = () => {
@@ -135,12 +149,17 @@ const MapContainer = ({
             stylers: [{ visibility: 'off' }] // Hide transit
           }
         ],
-        // Remove default UI controls for cleaner look
-        disableDefaultUI: false,
+        // Remove all default UI controls, pan/rotate arrows, and keyboard overlays
+        disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: false
+        fullscreenControl: false,
+        rotateControl: false,
+        scaleControl: false,
+        panControl: false,
+        keyboardShortcuts: false,
+        gestureHandling: 'greedy'
       });
 
       googleMapRef.current = map;
@@ -669,7 +688,7 @@ const MapContainer = ({
     });
   };
 
-  // Global function for quick report from hotspot
+  // Global function for quick report from hotspot & closing info windows
   useEffect(() => {
     window.reportSimilarHazard = (hazardId) => {
       const hazard = realTimeHazards.find(h => h.id === hazardId);
@@ -678,8 +697,16 @@ const MapContainer = ({
       }
     };
 
+    window.closeAllInfoWindows = () => {
+      markersRef.current.forEach(m => m.infoWindow?.close());
+      if (userLocationMarkerRef.current?.infoWindow) {
+        userLocationMarkerRef.current.infoWindow.close();
+      }
+    };
+
     return () => {
       delete window.reportSimilarHazard;
+      delete window.closeAllInfoWindows;
     };
   }, [realTimeHazards, onQuickReport]);
 
@@ -697,12 +724,12 @@ const MapContainer = ({
       title: 'Your Current Location',
       icon: {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-          <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="10" cy="10" r="8" fill="#2563eb" stroke="#ffffff" stroke-width="3" fill-opacity="0.8"/>
+          <svg width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="9" fill="#0284c7" stroke="#ffffff" stroke-width="3" fill-opacity="0.95"/>
           </svg>
         `)}`,
-        scaledSize: new google.maps.Size(20, 20),
-        anchor: new google.maps.Point(10, 10)
+        scaledSize: new google.maps.Size(22, 22),
+        anchor: new google.maps.Point(11, 11)
       },
       zIndex: 1000,
       optimized: false
@@ -710,14 +737,22 @@ const MapContainer = ({
 
     const userInfoWindow = new google.maps.InfoWindow({
       content: `
-        <div style="padding: 15px; max-width: 200px; font-family: 'Segoe UI', sans-serif;">
-          <h3 style="margin: 0 0 10px 0; color: #2563eb; font-size: 16px;">Your Location</h3>
-          <p style="margin: 5px 0; font-size: 12px; color: #6b7280;">
-            Accuracy: ±${userLocation.accuracy || 'N/A'}m
+        <div style="padding: 16px 18px; min-width: 220px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; background: #ffffff;">
+          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #0369a1; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+              📍 Your Location
+            </h3>
+            <button onclick="window.closeAllInfoWindows && window.closeAllInfoWindows()" 
+                    style="border: none; background: #f1f5f9; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 14px; font-weight: bold; color: #334155; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0;"
+                    aria-label="Close">
+              ✕
+            </button>
+          </div>
+          <p style="margin: 4px 0 8px 0; font-size: 12px; font-weight: 600; color: #475569;">
+            Accuracy: ±${Math.round(userLocation.accuracy || 10)}m
           </p>
-          <div style="background: #f1f5f9; padding: 8px; border-radius: 4px; margin-top: 8px;">
-            <p style="margin: 0; font-size: 11px; color: #374151;">
-              <strong>Coordinates:</strong><br>
+          <div style="background: #f8fafc; padding: 8px 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; font-size: 11px; font-weight: 700; color: #0f172a; font-family: monospace;">
               ${userLocation.latitude?.toFixed(6)}°, ${userLocation.longitude?.toFixed(6)}°
             </p>
           </div>
@@ -726,9 +761,11 @@ const MapContainer = ({
     });
 
     userMarker.addListener('click', () => {
+      markersRef.current.forEach(m => m.infoWindow?.close());
       userInfoWindow.open(googleMapRef.current, userMarker);
     });
 
+    userMarker.infoWindow = userInfoWindow;
     userLocationMarkerRef.current = userMarker;
   };
 
@@ -749,22 +786,32 @@ const MapContainer = ({
   const filteredHazards = getFilteredHazards();
 
   return (
-    <div className="relative w-full h-full bg-muted rounded-lg overflow-hidden">
-      {isMapLoaded ? (
-        <div
-          ref={mapRef}
-          className="absolute inset-0 w-full h-full"
-          style={{ minHeight: '400px' }}
-        />
-      ) : mapLoadTimeout ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
-          <div className="text-center p-8 max-w-md">
-            <div className="w-16 h-16 bg-error/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Icon name="MapPin" size={24} className="text-error" />
+    <div className="relative w-full h-full bg-slate-100 overflow-hidden select-none">
+      {/* Seamless Full-Bleed Map Canvas Container */}
+      <div
+        ref={mapRef}
+        className={`absolute inset-0 w-full h-full ${isMapLoaded ? 'block' : 'hidden'}`}
+        style={{ minHeight: '400px' }}
+      />
+
+      {!isMapLoaded && !mapLoadTimeout && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
+          <div className="text-center">
+            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-slate-800 font-bold text-sm">Loading coastal hazard map...</p>
+          </div>
+        </div>
+      )}
+
+      {mapLoadTimeout && !isMapLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10 p-6">
+          <div className="text-center p-6 bg-white border border-slate-200 rounded-2xl shadow-xl max-w-sm">
+            <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Icon name="MapPin" size={24} />
             </div>
-            <h3 className="text-foreground font-semibold mb-2">Map Unavailable</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Unable to load Google Maps. This might be due to network issues or API configuration.
+            <h3 className="text-slate-900 font-bold mb-1">Map Loading Timeout</h3>
+            <p className="text-slate-600 text-xs mb-4">
+              Click below to retry initializing the live map view.
             </p>
             <Button 
               variant="default" 
@@ -774,152 +821,108 @@ const MapContainer = ({
                 setIsMapLoaded(false);
                 window.location.reload();
               }}
+              className="font-bold bg-primary text-white"
             >
-              Retry
+              Retry Map
             </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading tsunami service map...</p>
-            <p className="text-muted-foreground text-sm mt-2">Initializing terrain view...</p>
           </div>
         </div>
       )}
 
-      <div
-        ref={mapRef}
-        className={`absolute inset-0 w-full h-full ${isMapLoaded ? 'block' : 'hidden'}`}
-        style={{ minHeight: '400px' }}
-      />
-
-      {/* Map Overlay Controls */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Real-time Update Indicator - Tsunami Service Style */}
-        <div className="absolute top-4 left-4 pointer-events-auto">
-          <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg px-3 py-2 shadow-lg">
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-red-600 rounded-full pulse-indicator"></div>
-              <span className="text-gray-800 font-medium">Live Hazard Data</span>
-              <span className="text-gray-500">
-                {lastUpdate?.toLocaleTimeString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Zoom Controls */}
-        <div className="absolute top-4 right-16 pointer-events-auto flex flex-col space-y-1">
+      {/* Map Floating Controls (Pointer events enabled ONLY on the exact buttons) */}
+      <div className="absolute top-3 right-3 z-10 pointer-events-auto">
+        <div className="flex flex-col bg-white border border-slate-300 rounded-2xl shadow-xl overflow-hidden p-1 space-y-1">
           <Button
-            variant="default"
-            size="icon"
-            iconName="Plus"
-            onClick={handleZoomIn}
-            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200 text-gray-800"
-            disabled={!isMapLoaded}
-          />
-          <Button
-            variant="default"
-            size="icon"
-            iconName="Minus"
-            onClick={handleZoomOut}
-            className="bg-white/95 backdrop-blur-sm shadow-lg w-8 h-8 border border-gray-200 text-gray-800"
-            disabled={!isMapLoaded}
-          />
-        </div>
-
-        {/* Location Button */}
-        <div className="absolute top-4 right-4 pointer-events-auto">
-          <Button
-            variant="default"
+            variant="ghost"
             size="icon"
             iconName="MapPin"
             onClick={getCurrentLocation}
             loading={isLocationLoading}
-            className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 text-gray-800"
+            className="w-9 h-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors text-slate-800"
             aria-label="Get current location"
             disabled={!isMapLoaded}
           />
-        </div>
-
-        {/* Quick Report FAB */}
-        {showQuickReport && (
-          <div className="absolute bottom-6 right-6 pointer-events-auto">
-            <Button
-              variant="default"
-              size="icon"
-              iconName="Plus"
-              onClick={onQuickReport}
-              className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg"
-              aria-label="Quick Report Hazard"
-            />
-          </div>
-        )}
-
-        {/* Info Button */}
-        <div className="absolute bottom-6 left-6 pointer-events-auto">
+          <div className="w-full h-px bg-slate-200" />
           <Button
-            variant="default"
+            variant="ghost"
+            size="icon"
+            iconName="Plus"
+            onClick={handleZoomIn}
+            className="w-9 h-9 rounded-xl hover:bg-slate-100 transition-colors text-slate-800"
+            disabled={!isMapLoaded}
+            aria-label="Zoom in"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            iconName="Minus"
+            onClick={handleZoomOut}
+            className="w-9 h-9 rounded-xl hover:bg-slate-100 transition-colors text-slate-800"
+            disabled={!isMapLoaded}
+            aria-label="Zoom out"
+          />
+          <div className="w-full h-px bg-slate-200" />
+          <Button
+            variant={showLegend ? "default" : "ghost"}
             size="icon"
             iconName="Info"
             onClick={() => setShowLegend(!showLegend)}
-            className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 text-gray-800"
-            aria-label="Show map legend"
+            className="w-9 h-9 rounded-xl transition-colors"
+            aria-label="Toggle map legend"
           />
         </div>
+      </div>
 
-        {/* Legend - Severity Based Color System */}
-        {showLegend && (
-          <div className="absolute bottom-6 left-16 pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg p-4 shadow-lg max-w-xs">
-              <h4 className="font-semibold text-gray-800 mb-3 text-sm">Legend</h4>
-              
-              <div className="mb-3 p-2 rounded-lg border border-gray-100">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">Verified Events:</span>
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                    {filteredHazards.length}
-                  </span>
+      {/* Bottom Left Legend Modal/Card */}
+      {showLegend && (
+        <div className="absolute bottom-3 left-3 z-10 pointer-events-auto max-w-xs w-[calc(100%-24px)] sm:w-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white border border-slate-300 rounded-2xl p-4 shadow-2xl text-slate-900">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
+                <div className="flex items-center space-x-2">
+                  <Icon name="Info" size={16} className="text-primary" />
+                  <h4 className="font-bold text-sm text-slate-900">{t('mapLegend', 'Map Legend')}</h4>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLegend(false)}
+                  className="text-slate-500 hover:text-slate-900 p-1 rounded-lg hover:bg-slate-100"
+                  aria-label="Close legend"
+                >
+                  <Icon name="X" size={14} />
+                </button>
               </div>
               
               <div className="space-y-2 mb-3">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Severity Levels</p>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2 text-xs">
-                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#22c55e', opacity: 0.8}}></div>
-                    <span className="text-gray-600">Low Severity</span>
+                <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{t('hazardSeverity', 'Hazard Severity')}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-success ring-2 ring-success/30" />
+                    <span className="text-slate-800">{t('low', 'Low')}</span>
                   </div>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#f59e0b', opacity: 0.8}}></div>
-                    <span className="text-gray-600">Medium Severity</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-secondary ring-2 ring-secondary/30" />
+                    <span className="text-slate-800">{t('medium', 'Medium')}</span>
                   </div>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#ef4444', opacity: 0.8}}></div>
-                    <span className="text-gray-600">High Severity</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-warning ring-2 ring-warning/30" />
+                    <span className="text-slate-800">{t('high', 'High')}</span>
                   </div>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <div className="w-7 h-7 rounded-full border-2 border-white" style={{backgroundColor: '#dc2626', opacity: 0.8}}></div>
-                    <span className="text-gray-600">Critical Severity</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <div className="w-5 h-5 bg-blue-600 rounded-full border-2 border-white opacity-80"></div>
-                    <span className="text-gray-600">Your Location</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-error ring-2 ring-error/30" />
+                    <span className="text-slate-800">{t('critical', 'Critical')}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
-                All markers are verified hazard events. Color indicates severity level from green (low) to dark red (critical).
+              <div className="text-[11px] font-medium text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 leading-relaxed">
+                {t('legendDescription', 'Markers indicate verified coastal hazard events. Pulses indicate active live alerts.')}
               </div>
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };
 
 export default MapContainer;
+

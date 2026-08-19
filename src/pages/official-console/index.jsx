@@ -687,12 +687,21 @@ const OfficialConsole = () => {
                 </div>
               </div>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
                 <OfflineStatusIndicator size="sm" />
+                <Button
+                  variant="outline"
+                  iconName="Map"
+                  onClick={() => navigate('/main-dashboard')}
+                  className="font-bold border-slate-300 text-slate-800 hover:bg-slate-100"
+                >
+                  Live Hazard Map
+                </Button>
                 <Button
                   variant="outline"
                   iconName="MapPin"
                   onClick={() => setIsHotspotModalOpen(true)}
+                  className="font-bold"
                 >
                   Create Hotspot
                 </Button>
@@ -700,6 +709,7 @@ const OfficialConsole = () => {
                   variant="default"
                   iconName="Bell"
                   onClick={() => navigate('/console-alerts')}
+                  className="font-bold"
                 >
                   Manage Alerts
                 </Button>

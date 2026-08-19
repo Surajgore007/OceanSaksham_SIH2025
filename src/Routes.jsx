@@ -9,12 +9,13 @@ import OfficialConsole from './pages/official-console';
 import ReportSubmission from './pages/reportsubmission';
 import ConsoleAlerts from './pages/console-alerts';
 import Register from './pages/register';
+import EmergencySosFab from './components/ui/EmergencySosFab';
 
 /**
  * Application Routes
  *
  * Role-based routing rules:
- *   /main-dashboard       -> citizen
+ *   /main-dashboard       -> citizen, official
  *   /report-submission    -> citizen, official
  *   /official-console     -> official
  *   /console-alerts       → official only
@@ -54,6 +55,9 @@ const Routes = () => {
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>
+
+        {/* Handy Emergency SOS Floating Button (Authenticated Only) */}
+        <EmergencySosFab />
       </ErrorBoundary>
     </BrowserRouter>
   );

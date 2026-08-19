@@ -6,14 +6,11 @@ import TrustSignals from './components/Trustsignals';
 import OceanBackground from './components/OceanBackground';
 import OfflineStatusIndicator from '../../components/ui/OfflineStatusIndicator';
 import authService from '../../utils/authService';
-import sosService from '../../utils/sosService';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSendingSos, setIsSendingSos] = useState(false);
   const [error, setError] = useState('');
-  const [sosStatus, setSosStatus] = useState(null);
   const [locationStatus, setLocationStatus] = useState(null);
 
   useEffect(() => {
@@ -57,27 +54,6 @@ const LoginPage = () => {
       setError(err?.message);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleSos = async () => {
-    setIsSendingSos(true);
-    setError('');
-    setSosStatus(null);
-
-    try {
-      const alert = await sosService.createSosAlert();
-      setSosStatus({
-        type: 'success',
-        message: `SOS sent to officials. Reference ${alert.sosId}.`,
-      });
-    } catch (err) {
-      setSosStatus({
-        type: 'error',
-        message: err?.message || 'Unable to send SOS. Please try again.',
-      });
-    } finally {
-      setIsSendingSos(false);
     }
   };
 
@@ -156,39 +132,6 @@ const LoginPage = () => {
 
               {/* Right Side - Login Form */}
               <div className="w-full max-w-md mx-auto lg:max-w-none">
-                <div className="mb-4">
-                  <button
-                    type="button"
-                    onClick={handleSos}
-                    disabled={isSendingSos}
-                    className="w-full rounded-2xl bg-error px-5 py-4 text-error-foreground shadow-modal transition-smooth hover:bg-error/90 disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    <span className="flex items-center justify-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-                        {isSendingSos ? (
-                          <span className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        ) : (
-                          <span className="text-xl font-bold">!</span>
-                        )}
-                      </span>
-                      <span className="text-left">
-                        <span className="block text-lg font-bold leading-tight">SOS / Emergency</span>
-                        <span className="block text-sm opacity-90">Send GPS location to officials now</span>
-                      </span>
-                    </span>
-                  </button>
-
-                  {sosStatus && (
-                    <div className={`mt-3 p-3 border rounded-lg ${
-                      sosStatus.type === 'success'
-                        ? 'bg-success/10 border-success/20 text-success'
-                        : 'bg-error/10 border-error/20 text-error'
-                    }`}>
-                      <p className="text-sm font-medium">{sosStatus.message}</p>
-                    </div>
-                  )}
-                </div>
-
                 <LoginForm
                   onLogin={handleLogin}
                   isLoading={isLoading}

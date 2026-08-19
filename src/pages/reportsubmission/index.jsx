@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import localDb from '../../utils/localDb';
 import realTimeService from '../../utils/realTimeService';
 import authService from '../../utils/authService';
+import { useTranslation } from '../../context/LanguageContext';
 
 // Import all components
 import HazardTypeSelector from './components/HazardTypeSelector';
@@ -29,6 +30,7 @@ const getDashboardForRole = (role) => {
 };
 
 const ReportSubmission = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -59,9 +61,9 @@ const ReportSubmission = () => {
   const totalSteps = 3;
 
   const steps = [
-    { id: 1, name: 'Hazard', icon: 'AlertTriangle' },
-    { id: 2, name: 'Location + Details', icon: 'MapPin' },
-    { id: 3, name: 'Evidence + Submit', icon: 'Camera' }
+    { id: 1, name: t('step1Title', 'Hazard Type'), icon: 'AlertTriangle' },
+    { id: 2, name: t('step2Title', 'Location & Notes'), icon: 'MapPin' },
+    { id: 3, name: t('step3Title', 'Media & Submit'), icon: 'Camera' }
   ];
 
   // Keep currentUser in sync with auth state changes
@@ -315,19 +317,19 @@ const ReportSubmission = () => {
 
             <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-foreground">Short Description</h3>
+                <h3 className="font-medium text-foreground">{t('shortDescription', 'Short Description')}</h3>
                 <Icon name="FileText" size={20} className="text-primary" />
               </div>
               <textarea
                 value={formData.description}
                 onChange={(e) => handleFormDataChange({ description: e.target.value })}
-                placeholder="Briefly describe what you see..."
+                placeholder={t('descriptionPlaceholder', 'Briefly describe what you see...')}
                 rows={4}
                 maxLength={400}
                 className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                Optional, but helpful for officials. Keep it short.
+                {t('descriptionHelp', 'Optional, but helpful for officials. Keep it short.')}
               </p>
             </div>
           </div>
@@ -394,7 +396,7 @@ const ReportSubmission = () => {
                   iconPosition="left"
                   className="sm:w-auto"
                 >
-                  Previous
+                  {t('previous', 'Previous')}
                 </Button>
 
                 <div className="flex gap-3">
@@ -404,7 +406,7 @@ const ReportSubmission = () => {
                     iconName="X"
                     iconPosition="left"
                   >
-                    Cancel
+                    {t('cancel', 'Cancel')}
                   </Button>
                   
                   <Button
@@ -414,7 +416,7 @@ const ReportSubmission = () => {
                     iconPosition="right"
                     className="flex-1 sm:flex-none sm:min-w-[120px]"
                   >
-                    {currentStep === totalSteps ? 'Submit Report' : 'Next'}
+                    {currentStep === totalSteps ? (isSubmitting ? t('submitting', 'Submitting...') : t('submitReport', 'Submit Report')) : t('next', 'Next')}
                   </Button>
                 </div>
               </div>
@@ -441,61 +443,45 @@ const ReportSubmission = () => {
 
         {/* Enhanced Success Modal */}
         {showSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full shadow-modal">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+            <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-slate-900 animate-in fade-in zoom-in-95 duration-200">
               <div className="text-center">
-                <div className="w-16 h-16 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="Clock" size={32} className="text-warning" />
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                  <Icon name="CheckCircle2" size={36} />
                 </div>
                 
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {isQuickReport ? 'Quick Report Submitted!' : 'Report Submitted Successfully!'}
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  {t('reportSubmittedSuccess', 'Report Submitted Successfully!')}
                 </h3>
                 
-                <p className="text-muted-foreground mb-4">
-                  {isQuickReport 
-                    ? 'Your related incident report has been submitted and is pending verification.'
-                    : 'Your hazard report has been submitted and is pending verification by coastal authorities.'
-                  }
+                <p className="text-slate-600 font-medium text-sm mb-5 leading-relaxed">
+                  {t('reportReviewNotice', 'Your report has been sent to disaster management officials for verification.')}
                 </p>
                 
-                {isQuickReport && sourceHazardInfo && (
-                  <div className="bg-blue/10 border border-blue/20 rounded-lg p-3 mb-4">
-                    <div className="flex items-center space-x-2 text-blue mb-2">
-                      <Icon name="Link" size={16} />
-                      <span className="text-sm font-medium">Related to Existing Hazard</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      This report has been linked to the {sourceHazardInfo.type?.replace('_', ' ')} hazard for pattern analysis.
-                    </p>
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-5 text-left">
+                  <div className="flex items-center space-x-2 text-amber-900 font-bold text-xs sm:text-sm mb-1">
+                    <Icon name="Clock" size={16} className="text-amber-700" />
+                    <span>{t('status', 'Status')}: {t('pendingVerification', 'Pending Verification')}</span>
                   </div>
-                )}
-                
-                <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 mb-6">
-                  <div className="flex items-center space-x-2 text-warning mb-2">
-                    <Icon name="AlertCircle" size={16} />
-                    <span className="text-sm font-medium">Status: Pending Verification</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    You'll receive updates once an official reviews and verifies your report. 
-                    Verified reports will appear on the public hazard map.
+                  <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+                    {t('legendDescription', 'Verified reports will appear on the public live hazard map.')}
                   </p>
                 </div>
 
                 {/* Report Reference */}
-                <div className="bg-muted/20 rounded-lg p-3 mb-6">
-                  <p className="text-xs text-muted-foreground mb-1">Report Reference:</p>
-                  <p className="font-mono text-sm text-foreground">
-                    #{formData.hazardType?.toUpperCase()}-{Date.now().toString().slice(-6)}
-                  </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-6 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">ID:</span>
+                  <span className="font-mono font-bold text-sm text-slate-900">
+                    #{formData.hazardType?.toUpperCase() || 'HAZARD'}-{Date.now().toString().slice(-6)}
+                  </span>
                 </div>
 
                 <div className="space-y-3">
                   <Button
                     onClick={handleSuccessClose}
-                    className="w-full"
+                    className="w-full font-bold bg-primary text-white hover:bg-primary/90 py-3 rounded-xl shadow-md"
                   >
-                    Return to Dashboard
+                    {t('backToMain', 'Return to Dashboard')}
                   </Button>
                   
                   <Button
@@ -518,17 +504,9 @@ const ReportSubmission = () => {
                       setIsQuickReport(false);
                       setSourceHazardInfo(null);
                     }}
-                    className="w-full"
+                    className="w-full font-bold border-slate-300 text-slate-800 hover:bg-slate-100 rounded-xl"
                   >
-                    Submit Another Report
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate('/my-reports')}
-                    className="w-full text-xs"
-                  >
-                    View My Report Status
+                    {t('reportHazard', 'Submit Another Report')}
                   </Button>
                 </div>
               </div>

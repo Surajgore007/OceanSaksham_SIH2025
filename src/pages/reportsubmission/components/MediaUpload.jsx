@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import locationService from '../../../utils/locationService';
+import { useTranslation } from '../../../context/LanguageContext';
 
 const MediaUpload = ({ 
   uploadedFiles = [], 
@@ -10,6 +11,7 @@ const MediaUpload = ({
   maxFileSize = 10 * 1024 * 1024, // 10MB
   className = '' 
 }) => {
+  const { t } = useTranslation();
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [errors, setErrors] = useState([]);
@@ -70,7 +72,7 @@ const MediaUpload = ({
     const errors = [];
     
     if (!Object.keys(acceptedTypes)?.includes(file?.type)) {
-      errors?.push(`${file?.name}: Unsupported file type. Please use JPG, PNG, WebP, MP4, WebM, or MOV files.`);
+      errors?.push(`${file?.name}: Unsupported file type.`);
     }
     
     if (file?.size > maxFileSize) {
@@ -81,10 +83,8 @@ const MediaUpload = ({
   };
 
   const processGeotaggedFile = async (file, location = null) => {
-    // Get fresh location for each file if not provided
     const currentLocation = location || await getCurrentLocation();
     
-    // Get address if location is available
     let address = null;
     if (currentLocation) {
       try {
@@ -98,142 +98,72 @@ const MediaUpload = ({
     }
 
     return {
-      id: Date.now() + Math.random(),
-      file: file,
-      name: file?.name,
-      size: file?.size,
-      type: file?.type,
-      preview: file?.type?.startsWith('image/') ? URL.createObjectURL(file) : null,
-      uploadedAt: new Date()?.toISOString(),
-      location: currentLocation,
-      address: address,
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      uploadedAt: new Date().toISOString(),
       geotagged: !!currentLocation,
-      compressionRatio: 0
+      location: currentLocation ? {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        accuracy: currentLocation.accuracy,
+        timestamp: currentLocation.timestamp,
+        source: currentLocation.source || 'GPS'
+      } : null,
+      address
     };
   };
 
-  const processFiles = async (fileList) => {
-    const files = Array.from(fileList);
+  const processFiles = async (files) => {
     const newErrors = [];
-    
-    // Check total file count
-    if (uploadedFiles?.length + files?.length > maxFiles) {
-      newErrors?.push(`Maximum ${maxFiles} files allowed. You can upload ${maxFiles - uploadedFiles?.length} more files.`);
-      setErrors(newErrors);
-      return;
-    }
-    
-    // Validate each file
-    files?.forEach(file => {
+    const validFiles = [];
+
+    Array.from(files).forEach((file) => {
       const fileErrors = validateFile(file);
-      newErrors?.push(...fileErrors);
-    });
-    
-    if (newErrors?.length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    
-    setErrors([]);
-    
-    // Process files with geotag information
-    const processedFiles = [];
-    
-    for (const file of files) {
-      const fileId = Date.now() + Math.random();
-      
-      // Start upload progress
-      setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-      
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          const currentProgress = prev?.[fileId] || 0;
-          if (currentProgress >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return { ...prev, [fileId]: currentProgress + 10 };
-        });
-      }, 200);
-      
-      try {
-        const geotaggedFile = await processGeotaggedFile(file);
-        geotaggedFile.id = fileId;
-        
-        // Complete upload
-        setUploadProgress(prev => ({ ...prev, [fileId]: 100 }));
-        
-        processedFiles?.push(geotaggedFile);
-        
-        // Remove progress after delay
-        setTimeout(() => {
-          setUploadProgress(prev => {
-            const newProgress = { ...prev };
-            delete newProgress?.[fileId];
-            return newProgress;
-          });
-        }, 1000);
-        
-      } catch (error) {
-        setErrors(prev => [...prev, `Failed to process ${file?.name}`]);
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress?.[fileId];
-          return newProgress;
-        });
+      if (fileErrors.length > 0) {
+        newErrors.push(...fileErrors);
+      } else if (uploadedFiles.length + validFiles.length < maxFiles) {
+        validFiles.push(file);
+      } else {
+        newErrors.push(`${t('maxFilesAllowed', 'Maximum 5 files allowed')}`);
       }
+    });
+
+    setErrors(newErrors);
+
+    if (validFiles.length > 0) {
+      const processedFiles = await Promise.all(
+        validFiles.map(file => processGeotaggedFile(file))
+      );
+      onFilesChange([...uploadedFiles, ...processedFiles]);
     }
-    
-    onFilesChange([...uploadedFiles, ...processedFiles]);
   };
 
   const startCamera = async () => {
     try {
+      setIsCapturing(true);
       setErrors([]);
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setErrors(['Camera not supported in this browser']);
-        return;
-      }
-
-      // Stop any existing stream
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        setCameraStream(null);
-      }
-
-      // Simple camera constraints
-      const constraints = {
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      });
+      
       setCameraStream(stream);
-      setIsCapturing(true);
-
-      // Set video source
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-
-    } catch (error) {
-      console.error('Camera error:', error);
-      let errorMessage = 'Camera access denied. Please enable camera permissions to take photos.';
       
-      if (error?.name === 'NotFoundError') {
-        errorMessage = 'No camera found. Please ensure your device has a camera.';
-      } else if (error?.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Please allow camera access and try again.';
-      } else if (error?.name === 'NotReadableError') {
-        errorMessage = 'Camera is already in use by another application.';
-      }
-      
-      setErrors([errorMessage]);
+      getCurrentLocation();
+    } catch (err) {
+      console.error('Camera access error:', err);
+      setErrors(['Unable to access camera. Please check camera permissions.']);
       setIsCapturing(false);
     }
   };
@@ -241,11 +171,8 @@ const MediaUpload = ({
   const stopCamera = () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraStream(null);
     setIsCapturing(false);
   };
 
@@ -255,7 +182,6 @@ const MediaUpload = ({
     
     if (isCapturing) {
       stopCamera();
-      // Small delay to ensure cleanup
       setTimeout(() => {
         startCamera();
       }, 200);
@@ -269,40 +195,31 @@ const MediaUpload = ({
     }
 
     try {
-      // Get current location at the moment of capture
       const captureLocation = await getCurrentLocation();
-      
       const video = videoRef.current;
       const canvas = canvasRef.current || document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
-      // Set canvas dimensions to match video
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-
-      // Draw current video frame to canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Convert canvas to blob
       canvas.toBlob(async (blob) => {
         if (blob && uploadedFiles?.length < maxFiles) {
           try {
-            // Create file from blob with timestamp
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const fileName = `camera_capture_${timestamp}.jpg`;
             const file = new File([blob], fileName, { type: 'image/jpeg' });
 
-            // Process the captured photo with current geotag
             const geotaggedPhoto = await processGeotaggedFile(file, captureLocation);
-
             onFilesChange([...uploadedFiles, geotaggedPhoto]);
             stopCamera();
           } catch (error) {
             console.error('Error processing captured photo:', error);
-            setErrors(['Failed to process captured photo. Please try again.']);
+            setErrors(['Failed to process captured photo.']);
           }
         } else if (uploadedFiles?.length >= maxFiles) {
-          setErrors([`Maximum ${maxFiles} files allowed.`]);
+          setErrors([t('maxFilesAllowed', 'Maximum 5 files allowed')]);
         }
       }, 'image/jpeg', 0.85);
       
@@ -334,7 +251,6 @@ const MediaUpload = ({
     if (files?.length > 0) {
       processFiles(files);
     }
-    // Reset input
     e.target.value = '';
   };
 
@@ -342,7 +258,6 @@ const MediaUpload = ({
     const updatedFiles = uploadedFiles?.filter(file => file?.id !== fileId);
     onFilesChange(updatedFiles);
     
-    // Clean up preview URL
     const fileToRemove = uploadedFiles?.find(file => file?.id === fileId);
     if (fileToRemove && fileToRemove?.preview) {
       URL.revokeObjectURL(fileToRemove?.preview);
@@ -357,16 +272,16 @@ const MediaUpload = ({
     return (
       <div className={`space-y-4 ${className}`}>
         <div className="text-center mb-4">
-          <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2">
-            Camera Capture
+          <h2 className="text-lg md:text-xl font-bold text-slate-900 mb-1">
+            {t('cameraCapture', 'Camera Capture')}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Take a geotagged photo for your report
+          <p className="text-sm font-medium text-slate-600">
+            {t('takeGeotaggedPhoto', 'Take a live geotagged photo for your report')}
           </p>
         </div>
         
         {/* Camera View */}
-        <div className="relative bg-black rounded-lg overflow-hidden aspect-[4/3] max-h-[70vh]">
+        <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] max-h-[70vh] shadow-2xl">
           <video
             ref={videoRef}
             autoPlay
@@ -377,14 +292,14 @@ const MediaUpload = ({
           
           {/* Location indicator */}
           <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-            <div className="flex items-center space-x-1 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full text-white text-xs">
-              <Icon name="MapPin" size={12} />
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-black/80 backdrop-blur-sm rounded-full text-white text-xs font-bold shadow-md">
+              <Icon name="MapPin" size={13} className="text-primary" />
               {isLocationLoading ? (
-                <span>Getting GPS...</span>
+                <span>GPS...</span>
               ) : userLocation ? (
                 <span>GPS: ±{userLocation?.accuracy?.toFixed(0)}m</span>
               ) : (
-                <span className="text-yellow-300">No GPS</span>
+                <span className="text-amber-300">No GPS</span>
               )}
             </div>
             
@@ -394,7 +309,7 @@ const MediaUpload = ({
               size="sm"
               iconName="RotateCcw"
               onClick={switchCamera}
-              className="bg-black/70 backdrop-blur-sm text-white border-none hover:bg-black/80 p-2"
+              className="bg-black/80 backdrop-blur-sm text-white border-none hover:bg-black p-2 rounded-full"
             />
           </div>
 
@@ -405,9 +320,9 @@ const MediaUpload = ({
               size="sm"
               iconName="X"
               onClick={stopCamera}
-              className="bg-black/70 backdrop-blur-sm text-white border-white/30 hover:bg-black/80"
+              className="bg-black/80 backdrop-blur-sm text-white border-white/40 hover:bg-black font-bold rounded-xl"
             >
-              Cancel
+              {t('cancel', 'Cancel')}
             </Button>
             
             <Button
@@ -415,19 +330,17 @@ const MediaUpload = ({
               size="lg"
               iconName="Camera"
               onClick={capturePhoto}
-              className="bg-primary hover:bg-primary/90 text-white px-8"
+              className="bg-primary hover:bg-primary/90 text-white px-8 font-bold rounded-xl shadow-lg"
             >
-              Capture
+              {t('captureBtn', 'Capture Photo')}
             </Button>
           </div>
         </div>
         
-        {/* Hidden canvas for photo processing */}
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         
-        {/* Camera info */}
-        <div className="text-center text-xs text-muted-foreground">
-          Using {facingMode === 'environment' ? 'back' : 'front'} camera • Location will be captured at the moment you take the photo
+        <div className="text-center text-xs font-semibold text-slate-500">
+          {t('usingCamera', 'Location will be embedded at the moment you take the photo')}
         </div>
       </div>
     );
@@ -436,39 +349,41 @@ const MediaUpload = ({
   return (
     <div className={`space-y-4 md:space-y-6 ${className}`}>
       <div className="text-center mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2">
-          Upload Geotagged Media
+        <h2 className="text-xl font-bold text-slate-900 mb-1.5">
+          {t('uploadGeotaggedMedia', 'Upload Geotagged Media')}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          Add photos or videos with location data to support your report
+        <p className="text-sm font-medium text-slate-600">
+          {t('uploadMediaDesc', 'Add photos or videos with location data to support your report')}
         </p>
       </div>
       
       {/* Camera and File Upload Buttons */}
       <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6">
-        <Button
-          variant="outline"
-          iconName="Camera"
-          iconPosition="left"
+        <button
+          type="button"
           onClick={startCamera}
           disabled={uploadedFiles?.length >= maxFiles}
-          className="aspect-square flex-col h-20 md:h-24 text-xs md:text-sm"
+          className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group"
         >
-          <span className="mt-1">Take Photo</span>
-          <span className="text-xs text-muted-foreground">Live Geotag</span>
-        </Button>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <Icon name="Camera" size={20} />
+          </div>
+          <span className="font-bold text-sm text-slate-900">{t('takePhoto', 'Take Photo')}</span>
+          <span className="text-xs font-semibold text-primary">{t('liveGeotag', 'Live Geotag')}</span>
+        </button>
         
-        <Button
-          variant="outline"
-          iconName="Upload"
-          iconPosition="left"
+        <button
+          type="button"
           onClick={openFileDialog}
           disabled={uploadedFiles?.length >= maxFiles}
-          className="aspect-square flex-col h-20 md:h-24 text-xs md:text-sm"
+          className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50 transition-all text-slate-900 shadow-xs group"
         >
-          <span className="mt-1">Upload Files</span>
-          <span className="text-xs text-muted-foreground">Auto-geotag</span>
-        </Button>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <Icon name="Upload" size={20} />
+          </div>
+          <span className="font-bold text-sm text-slate-900">{t('uploadFiles', 'Upload Files')}</span>
+          <span className="text-xs font-semibold text-emerald-700">{t('autoGeotag', 'Auto Geotag')}</span>
+        </button>
       </div>
       
       {/* Upload Area */}
@@ -477,10 +392,10 @@ const MediaUpload = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative border-2 border-dashed rounded-lg p-4 md:p-6 text-center transition-all duration-200
+          relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200
           ${isDragOver 
-            ? 'border-primary bg-primary/5 scale-[1.02]' 
-            : 'border-border hover:border-primary/50 hover:bg-muted/30'
+            ? 'border-primary bg-blue-50 scale-[1.01]' 
+            : 'border-slate-300 bg-white hover:border-primary/50 hover:bg-slate-50'
           }
         `}
       >
@@ -493,25 +408,23 @@ const MediaUpload = ({
           className="hidden"
         />
 
-        <div className="space-y-3">
-          <div className="mx-auto w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center">
-            <Icon name="Upload" size={20} className="text-primary" />
+        <div className="space-y-2">
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+            <Icon name="UploadCloud" size={24} />
           </div>
 
           <div>
-            <h3 className="font-medium text-foreground mb-1 text-sm md:text-base">
-              {isDragOver ? "Drop files here" : "Or drag and drop files"}
+            <h3 className="font-bold text-slate-900 text-sm md:text-base">
+              {isDragOver ? t('dropFilesHere', 'Drop files here') : t('dragDropFiles', 'Or drag and drop files')}
             </h3>
-            <p className="text-xs md:text-sm text-muted-foreground">
-              Files will be automatically geotagged with your current location
+            <p className="text-xs font-semibold text-slate-600 mt-1">
+              {t('autoGeotagNotice', 'Files will be automatically geotagged with your current location')}
             </p>
           </div>
 
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>Supported: JPG, PNG, WebP, MP4, WebM, MOV</p>
-            <p>Maximum file size: {formatFileSize(maxFileSize)}</p>
-            <p>Maximum {maxFiles} files ({uploadedFiles?.length}/{maxFiles} used)</p>
-          </div>
+          <p className="text-xs font-semibold text-slate-500 pt-1">
+            {t('supportedFormats', 'Supported: JPG, PNG, WebP, MP4, WebM, MOV (Max 10MB)')}
+          </p>
         </div>
       </div>
       
@@ -519,32 +432,9 @@ const MediaUpload = ({
       {errors?.length > 0 && (
         <div className="space-y-2">
           {errors?.map((error, index) => (
-            <div key={index} className="p-3 bg-error/10 border border-error/20 rounded-lg">
-              <div className="flex items-start space-x-2">
-                <Icon name="AlertCircle" size={16} className="text-error mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-error">{error}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {/* Upload Progress */}
-      {Object.keys(uploadProgress)?.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-foreground text-sm">Processing Files...</h4>
-          {Object.entries(uploadProgress)?.map(([fileId, progress]) => (
-            <div key={fileId} className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Adding geotag data...</span>
-                <span className="text-foreground font-medium">{progress}%</span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+            <div key={index} className="p-3 bg-red-50 border-2 border-red-200 rounded-xl text-xs font-bold text-red-800 flex items-center space-x-2">
+              <Icon name="AlertCircle" size={16} className="text-red-600 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           ))}
         </div>
@@ -552,68 +442,55 @@ const MediaUpload = ({
       
       {/* Uploaded Files */}
       {uploadedFiles?.length > 0 && (
-        <div className="space-y-4">
-          <h4 className="font-medium text-foreground text-sm">Uploaded Files ({uploadedFiles?.length})</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+        <div className="space-y-3">
+          <h4 className="font-bold text-slate-900 text-sm">
+            {t('uploadedFilesCount', 'Uploaded Evidence')} ({uploadedFiles?.length})
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {uploadedFiles?.map((file) => (
-              <div key={file?.id} className="bg-card border border-border rounded-lg p-3 md:p-4">
+              <div key={file?.id} className="bg-white border-2 border-slate-200 rounded-2xl p-3 shadow-xs">
                 <div className="flex items-start space-x-3">
-                  {/* File Preview */}
-                  <div className="w-14 h-14 md:w-16 md:h-16 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 relative">
+                  <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 relative overflow-hidden">
                     {file?.preview ? (
                       <img 
                         src={file?.preview} 
                         alt={file?.name}
-                        className="w-full h-full object-cover rounded-lg"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <Icon 
                         name={file?.type?.startsWith('video/') ? "Video" : "File"} 
                         size={18} 
-                        className="text-muted-foreground" 
+                        className="text-slate-500" 
                       />
                     )}
-                    
-                    {/* Geotag indicator */}
                     {file?.geotagged && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full flex items-center justify-center">
-                        <Icon name="MapPin" size={10} className="text-white" />
+                      <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-green-600 rounded-full flex items-center justify-center ring-2 ring-white">
+                        <Icon name="Check" size={8} className="text-white" />
                       </div>
                     )}
                   </div>
 
-                  {/* File Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{file?.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-bold text-slate-900 text-xs truncate">{file?.name}</p>
+                    <p className="text-[11px] font-semibold text-slate-500">
                       {formatFileSize(file?.size)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(file.uploadedAt)?.toLocaleTimeString()}
-                    </p>
-                    
-                    {/* Location info */}
-                    {file?.geotagged && file?.address && (
-                      <p className="text-xs text-success mt-1 truncate">
-                        📍 {file?.address?.address}
-                      </p>
-                    )}
-                    
-                    {!file?.geotagged && (
-                      <p className="text-xs text-warning mt-1">
-                        ⚠️ No location data
+                    {file?.geotagged && (
+                      <p className="text-[11px] font-bold text-green-700 mt-0.5">
+                        📍 {t('liveGeotag', 'Live GPS Tagged')}
                       </p>
                     )}
                   </div>
 
-                  {/* Remove Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <button
+                    type="button"
                     onClick={() => removeFile(file?.id)}
-                    iconName="X"
-                    className="text-muted-foreground hover:text-error w-6 h-6 flex-shrink-0"
-                  />
+                    className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-slate-100"
+                    aria-label="Remove file"
+                  >
+                    <Icon name="Trash2" size={15} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -622,17 +499,17 @@ const MediaUpload = ({
       )}
       
       {/* Media Guidelines */}
-      <div className="p-3 md:p-4 bg-muted/30 border border-border rounded-lg">
+      <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl">
         <div className="flex items-start space-x-3">
           <Icon name="Info" size={18} className="text-primary mt-0.5 flex-shrink-0" />
           <div>
-            <h4 className="font-medium text-foreground mb-2 text-sm">Geotagged Media Guidelines</h4>
-            <ul className="text-xs md:text-sm text-muted-foreground space-y-1">
-              <li>• Photos taken with camera are geotagged at the moment of capture</li>
-              <li>• Uploaded files are tagged with your current location</li>
-              <li>• Location data helps officials verify and respond to reports</li>
-              <li>• All location data is encrypted and used only for official purposes</li>
-              <li>• Take clear photos showing hazard conditions and surroundings</li>
+            <h4 className="font-bold text-slate-900 mb-1.5 text-xs sm:text-sm">
+              {t('mediaGuidelinesTitle', 'Geotagged Evidence Guidelines')}
+            </h4>
+            <ul className="text-xs font-semibold text-slate-600 space-y-1">
+              <li>• {t('guideline1', 'Photos taken with camera are geotagged at the exact moment of capture')}</li>
+              <li>• {t('guideline2', 'Location coordinates help disaster officials verify emergency reports')}</li>
+              <li>• {t('guideline3', 'Capture clear wide-angle photos showing wave height and landmarks')}</li>
             </ul>
           </div>
         </div>

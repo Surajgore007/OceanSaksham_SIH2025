@@ -69,10 +69,10 @@
 }
 
 @layer components {
-  /* Glassmorphic Status Cards */
+  /* Crisp High-Contrast Cards */
   .glass-card {
-    @apply backdrop-blur-[10px] bg-white/80 border border-white/20;
-    box-shadow: 0 8px 32px rgba(15, 76, 117, 0.1);
+    @apply bg-white border border-gray-200 text-gray-900;
+    box-shadow: 0 4px 20px rgba(15, 76, 117, 0.08);
   }
   
   /* Wave-inspired loading animation */
@@ -141,3 +141,50 @@
     }
   }
 }
+
+/* Google Maps InfoWindow Custom Fixes */
+.gm-style-iw {
+  padding: 0 !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.gm-style-iw-d {
+  overflow: auto !important;
+  padding: 0 !important;
+}
+
+.gm-style-iw button.gm-ui-hover-effect {
+  top: 8px !important;
+  right: 8px !important;
+  width: 32px !important;
+  height: 32px !important;
+  background-color: #f1f5f9 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 0.9 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  z-index: 9999 !important;
+}
+
+.gm-style-iw button.gm-ui-hover-effect:hover {
+  background-color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+.gm-style-iw button.gm-ui-hover-effect span {
+  margin: 0 !important;
+}
+
+/* Hide Google Maps Default Bottom Navigation & Arrow Controls */
+.gm-control-active,
+.gm-bundled-control,
+.gmnoprint,
+.gm-style-cc {
+  display: none !important;
+}
+

@@ -4,6 +4,7 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import locationService from '../../../utils/locationService'; // Import the centralized service
 import localDb from '../../../utils/localDb';
+import { useTranslation } from '../../../context/LanguageContext';
 
 const LocationPicker = ({ 
   selectedLocation, 
@@ -11,6 +12,7 @@ const LocationPicker = ({
   className = '',
   reportData = null // Pass hazard report data to create hotspot
 }) => {
+  const { t } = useTranslation();
   const [currentLocation, setCurrentLocation] = useState(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -303,150 +305,94 @@ const LocationPicker = ({
       </div>
       
       {/* Location Method Selector */}
-      <div className="flex space-x-2 p-1 bg-muted rounded-lg">
+      <div className="flex space-x-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
         <button
+          type="button"
           onClick={() => setLocationMethod('current')}
           className={`
-            flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+            flex-1 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all
             ${locationMethod === 'current' 
-              ? 'bg-primary text-primary-foreground shadow-sm' 
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-white shadow-xs' 
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
             }
           `}
         >
-          Current Location
+          {t('currentLocation', 'Current Location')}
         </button>
         <button
+          type="button"
           onClick={() => setLocationMethod('manual')}
           className={`
-            flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+            flex-1 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all
             ${locationMethod === 'manual' 
-              ? 'bg-primary text-primary-foreground shadow-sm' 
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-white shadow-xs' 
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
             }
           `}
         >
-          Manual Entry
+          {t('manualEntry', 'Manual Entry')}
         </button>
       </div>
       
       {locationMethod === 'current' && (
         <div className="space-y-4">
           {/* Current Location Section */}
-          <div className="bg-card border border-border rounded-lg p-6">
+          <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs text-slate-900">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-foreground">Use Current Location</h3>
+              <h3 className="font-bold text-slate-900 text-base">{t('useCurrentLocation', 'Use Current Location')}</h3>
               <Icon name="MapPin" size={20} className="text-primary" />
             </div>
 
             {!currentLocation && !isLoadingLocation && (
-              <div className="text-center py-8">
-                <Icon name="Navigation" size={48} className="text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  Get your current location automatically
+              <div className="text-center py-6">
+                <Icon name="Navigation" size={44} className="text-slate-400 mx-auto mb-3" />
+                <p className="text-slate-600 font-medium mb-4 text-sm">
+                  {t('getAutoLocation', 'Get your current location automatically')}
                 </p>
                 <Button
                   onClick={getCurrentLocation}
                   iconName="Navigation"
                   iconPosition="left"
-                  className="mx-auto"
+                  className="mx-auto font-bold bg-primary text-white hover:bg-primary/90"
                 >
-                  Use My Location
+                  {t('useMyLocationBtn', 'Use My Location')}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  For best accuracy, ensure you're outdoors with clear sky view
+                <p className="text-xs font-semibold text-slate-500 mt-2.5">
+                  {t('outdoorSkyTip', "For best accuracy, ensure you're outdoors with clear sky view")}
                 </p>
               </div>
             )}
 
             {isLoadingLocation && (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-muted-foreground mb-2">Getting your location...</p>
-                <p className="text-xs text-muted-foreground">
-                  This may take up to 45 seconds for best accuracy
+              <div className="text-center py-6">
+                <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-slate-800 font-bold mb-1 text-sm">{t('gettingLocation', 'Getting your location...')}</p>
+                <p className="text-xs text-slate-500 font-medium">
+                  {t('gettingLocationWait', 'This may take up to 45 seconds for best accuracy')}
                 </p>
               </div>
             )}
 
             {currentLocation && (
               <div className="space-y-3">
-                <div className="flex items-start space-x-3 p-3 bg-success/10 border border-success/20 rounded-lg">
-                  <Icon name="CheckCircle" size={20} className="text-success mt-0.5" />
-                  <div className="flex-1">
-                    <p className="font-medium text-success mb-1">
-                      {currentLocation.isFallback ? 'Fallback Location Used' : 'Location Found'}
+                <div className="flex items-start space-x-3 p-3.5 bg-green-50 border-2 border-green-200 rounded-xl">
+                  <Icon name="CheckCircle" size={20} className="text-green-700 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-green-900 mb-1 text-sm">
+                      {currentLocation.isFallback ? t('fallbackLocationUsed', 'Fallback Location Used') : t('locationFound', 'GPS Location Found')}
                     </p>
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-2 truncate">
                       {currentLocation?.address}
                     </p>
                     
-                    {/* Accuracy Status Display */}
-                    {accuracyStatus && (
-                      <div 
-                        className="mb-2 p-2 rounded border"
-                        style={{ 
-                          backgroundColor: `${getAccuracyColor(accuracyStatus.status)}15`,
-                          borderColor: `${getAccuracyColor(accuracyStatus.status)}40`
-                        }}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <Icon 
-                            name={getAccuracyIcon(accuracyStatus.status)} 
-                            size={16} 
-                            style={{ color: getAccuracyColor(accuracyStatus.status) }}
-                          />
-                          <p 
-                            className="text-xs font-medium"
-                            style={{ color: getAccuracyColor(accuracyStatus.status) }}
-                          >
-                            {accuracyStatus.message}
-                          </p>
-                        </div>
-                        {currentLocation.accuracy && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Accuracy: ±{Math.round(currentLocation.accuracy)}m
-                            {currentLocation.source && ` via ${currentLocation.source}`}
-                            {currentLocation.accuracy > 1000 && (
-                              <span className="block mt-1 text-orange-600 font-medium">
-                                ⚠️ This appears to be network-based location, not GPS
-                              </span>
-                            )}
-                            {currentLocation.accuracy > 100 && currentLocation.accuracy <= 1000 && (
-                              <span className="block mt-1 text-yellow-600">
-                                💡 Move outdoors for better GPS accuracy
-                              </span>
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {currentLocation.isFallback && (
-                      <div className="mb-2 p-2 bg-blue/10 rounded border border-blue/20">
-                        <p className="text-xs text-blue font-medium">
-                          Using demo location: {currentLocation.fallbackLocationName}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Perfect for testing! Your report and hotspot are created successfully.
-                        </p>
-                      </div>
-                    )}
-                    {reportData && (
-                      <div className="mb-2 p-2 bg-accent/10 rounded border border-accent/20">
-                        <p className="text-xs text-accent font-medium">
-                          Hazard hotspot created: {reportData.hazardType?.replace('_', ' ')} ({reportData.severity})
-                        </p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+                    <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-2.5 rounded-lg border border-green-200">
                       <div>
-                        <span className="text-muted-foreground">Latitude:</span>
-                        <span className="ml-2 text-foreground">{currentLocation?.latitude?.toFixed(6)}</span>
+                        <span className="text-slate-500 font-semibold">{t('latitude', 'Latitude')}:</span>
+                        <span className="ml-1.5 font-bold text-slate-900">{currentLocation?.latitude?.toFixed(6)}°</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Longitude:</span>
-                        <span className="ml-2 text-foreground">{currentLocation?.longitude?.toFixed(6)}</span>
+                        <span className="text-slate-500 font-semibold">{t('longitude', 'Longitude')}:</span>
+                        <span className="ml-1.5 font-bold text-slate-900">{currentLocation?.longitude?.toFixed(6)}°</span>
                       </div>
                     </div>
                   </div>
@@ -459,38 +405,12 @@ const LocationPicker = ({
                   iconName="RefreshCw"
                   iconPosition="left"
                   loading={isLoadingLocation}
-                  className="w-full"
+                  className="w-full font-bold border-slate-300 text-slate-800 hover:bg-slate-100"
                 >
-                  {currentLocation && currentLocation.accuracy > 1000 ? 'Try GPS Mode' : 
-                   currentLocation && currentLocation.accuracy > 100 ? 'Try for Better Accuracy' : 
-                   'Refresh Location'}
+                  {t('refresh', 'Refresh Location')}
                 </Button>
               </div>
             )}
-          </div>
-
-          {/* Map Preview */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="h-64 bg-muted relative">
-              {selectedLocation ? (
-                <iframe
-                  width="100%"
-                  height="100%"
-                  loading="lazy"
-                  title="Selected Location"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps?q=${selectedLocation?.latitude},${selectedLocation?.longitude}&z=15&output=embed`}
-                  className="border-0"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <Icon name="Map" size={48} className="text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">Map will appear after location selection</p>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
@@ -498,17 +418,17 @@ const LocationPicker = ({
       {locationMethod === 'manual' && (
         <div className="space-y-4">
           {/* Manual Coordinates Entry */}
-          <div className="bg-card border border-border rounded-lg p-6">
+          <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs text-slate-900">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-foreground">Enter Coordinates</h3>
+              <h3 className="font-bold text-slate-900 text-base">{t('enterCoordinates', 'Enter GPS Coordinates')}</h3>
               <Icon name="Edit3" size={20} className="text-primary" />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <Input
-                label="Latitude"
+                label={t('latitude', 'Latitude')}
                 type="number"
-                placeholder="e.g., 13.0475"
+                placeholder={t('latPlaceholder', 'e.g., 18.9220')}
                 value={manualCoords?.latitude}
                 onChange={(e) => handleCoordinateChange('latitude', e?.target?.value)}
                 step="any"
@@ -517,9 +437,9 @@ const LocationPicker = ({
                 required
               />
               <Input
-                label="Longitude"
+                label={t('longitude', 'Longitude')}
                 type="number"
-                placeholder="e.g., 80.2824"
+                placeholder={t('lngPlaceholder', 'e.g., 72.8347')}
                 value={manualCoords?.longitude}
                 onChange={(e) => handleCoordinateChange('longitude', e?.target?.value)}
                 step="any"
@@ -533,10 +453,10 @@ const LocationPicker = ({
               onClick={handleManualLocationSubmit}
               iconName="MapPin"
               iconPosition="left"
-              className="w-full"
+              className="w-full font-bold bg-primary text-white hover:bg-primary/90"
               disabled={!manualCoords?.latitude || !manualCoords?.longitude}
             >
-              Set Location
+              {t('useMyLocationBtn', 'Set Location')}
             </Button>
           </div>
 

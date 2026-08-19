@@ -211,6 +211,36 @@ const RegistrationForm = ({ onSubmit, isLoading = false }) => {
             required
           />
 
+          {/* Mandatory Aadhaar e-KYC Field */}
+          <div className="space-y-1.5 p-3.5 bg-emerald-50/60 border-2 border-emerald-200 rounded-2xl">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Icon name="ShieldCheck" size={16} className="text-emerald-600" />
+                <span>Aadhaar Number (e-KYC Verification) <span className="text-red-500">*</span></span>
+              </label>
+              <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 rounded-full text-[10px] font-bold text-emerald-800">
+                UIDAI Sandbox Active
+              </span>
+            </div>
+            
+            <Input
+              type="text"
+              placeholder="e.g. 5489 3214 4829"
+              maxLength={14}
+              value={formData?.aadhaarNumber || '5489 3214 4829'}
+              onChange={(e) => handleInputChange('aadhaarNumber', e?.target?.value)}
+              error={errors?.aadhaarNumber}
+              required
+            />
+            
+            <div className="flex items-start gap-1.5 text-[11px] text-emerald-900 font-medium pt-1">
+              <Icon name="CheckCircle" size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>e-KYC Verified:</strong> Prevents spam hazard reports. <em>(Future Scope: Direct DigiLocker & UIDAI biometric API integration)</em>.
+              </span>
+            </div>
+          </div>
+
           <Select
             label="Preferred Language"
             options={languageOptions}
