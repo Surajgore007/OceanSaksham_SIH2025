@@ -35,7 +35,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const payload = req.body || {};
+    let payload = req.body || {};
+    if (typeof payload === 'string') {
+      try {
+        const urlParams = new URLSearchParams(payload);
+        payload = Object.fromEntries(urlParams.entries());
+      } catch {}
+    }
+
     const from = payload.From || 'whatsapp:+910000000000';
     const body = (payload.Body || '').trim();
     const lowerBody = body.toLowerCase();
