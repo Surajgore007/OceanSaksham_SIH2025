@@ -100,12 +100,22 @@ class RealTimeService {
 
       newReports.forEach(incoming => {
         if (!incoming?.id) return;
-        const exists = existingUserReports.some(r => r.id === incoming.id);
-        if (!exists) {
+        const existingIdx = existingUserReports.findIndex(r => r.id === incoming.id);
+        if (existingIdx === -1) {
           localDb.insert('userReports', incoming);
           localDb.insert('pendingVerification', incoming);
           localDb.insert('pendingReports', incoming);
           addedAny = true;
+        } else {
+          // If incoming report has media and local version doesn't, update local version!
+          const existing = existingUserReports[existingIdx];
+          const incomingHasMedia = (incoming.media && incoming.media.length > 0) || (incoming.mediaFiles && incoming.mediaFiles.length > 0);
+          const existingHasMedia = (existing.media && existing.media.length > 0) || (existing.mediaFiles && existing.mediaFiles.length > 0);
+          if (incomingHasMedia && !existingHasMedia) {
+            localDb.update('userReports', incoming.id, () => incoming);
+            localDb.update('pendingVerification', incoming.id, () => incoming);
+            addedAny = true;
+          }
         }
       });
 

@@ -86,9 +86,14 @@ const OfficialConsole = () => {
               if (Array.isArray(liveReports) && liveReports.length > 0) {
                 const existing = localDb.getCollection('userReports') || [];
                 liveReports.forEach(incoming => {
-                  if (incoming?.id && !existing.some(r => r.id === incoming.id)) {
+                  if (!incoming?.id) return;
+                  const found = existing.find(r => r.id === incoming.id);
+                  if (!found) {
                     localDb.insert('userReports', incoming);
                     localDb.insert('pendingVerification', incoming);
+                  } else {
+                    localDb.update('userReports', incoming.id, () => incoming);
+                    localDb.update('pendingVerification', incoming.id, () => incoming);
                   }
                 });
                 break;
