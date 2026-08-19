@@ -9,7 +9,6 @@ const RegistrationSuccess = ({ userEmail, userRole }) => {
   const getRoleIcon = () => {
     switch (userRole) {
       case 'official': return 'Shield';
-      case 'analyst': return 'BarChart3';
       default: return 'Users';
     }
   };
@@ -17,7 +16,6 @@ const RegistrationSuccess = ({ userEmail, userRole }) => {
   const getRoleColor = () => {
     switch (userRole) {
       case 'official': return 'text-secondary';
-      case 'analyst': return 'text-accent';
       default: return 'text-primary';
     }
   };

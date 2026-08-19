@@ -29,19 +29,19 @@ const Header = ({ user = null, onLogout = () => {} }) => {
       label: 'Dashboard', 
       path: '/main-dashboard', 
       icon: 'BarChart3',
-      roles: ['citizen', 'official', 'analyst']
+      roles: ['citizen']
     },
     { 
       label: 'Report Hazard', 
       path: '/report-submission', 
       icon: 'AlertTriangle',
-      roles: ['citizen', 'official', 'analyst']
+      roles: ['citizen', 'official']
     },
     { 
       label: 'Official Console', 
       path: '/official-console', 
       icon: 'Shield',
-      roles: ['official', 'analyst']
+      roles: ['official']
     },
     { 
       label: 'Alerts', 

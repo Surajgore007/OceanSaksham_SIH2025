@@ -9,6 +9,8 @@ import AuthenticationGuard from '../../components/ui/AuthenticationGuard';
 import OfflineStatusIndicator from '../../components/ui/OfflineStatusIndicator';
 import localDb from '../../utils/localDb';
 import realTimeService from '../../utils/realTimeService';
+import authService from '../../utils/authService';
+import sosService from '../../utils/sosService';
 
 // Import components (assuming these exist)
 import ReportMetrics from './components/ReportMetrics';
@@ -18,18 +20,21 @@ import HotspotCreator from './components/HotspotCreator';
 const OfficialConsole = () => {
   const navigate = useNavigate();
   
-  // Mock user data - in real app this would come from auth context
-  const [user] = useState({
-    id: 'official_001',
-    name: 'Dr. Priya Sharma',
-    email: 'priya.sharma@incois.gov.in',
-    role: 'official',
-    department: 'Coastal Hazard Management',
-    location: 'Chennai Regional Office'
-  });
+  // Real authenticated user — NEVER a hardcoded mock.
+  // Auth state is initialized synchronously then kept in sync via subscription.
+  const [user, setUser] = useState(() => authService.getCurrentUser());
+
+  // Subscribe to auth state changes (handles login/logout while mounted)
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange((updatedUser) => {
+      setUser(updatedUser);
+    });
+    return unsubscribe;
+  }, []);
 
   // State management
   const [reports, setReports] = useState([]);
+  const [sosAlerts, setSosAlerts] = useState([]);
   const [filteredReports, setFilteredReports] = useState([]);
   const [selectedReports, setSelectedReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -54,9 +59,14 @@ const OfficialConsole = () => {
       loadData(); // Reload when reports are updated
     });
 
+    const unsubscribeSos = realTimeService?.subscribe('sosAlerts', () => {
+      loadData();
+    });
+
     return () => {
       unsubscribePending?.();
       unsubscribeReports?.();
+      unsubscribeSos?.();
     };
   }, []);
 
@@ -68,8 +78,11 @@ const OfficialConsole = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const allReports = loadAllReportsForVerification();
+      const allSosAlerts = sosService.getSosAlerts()
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setReports(allReports);
       setFilteredReports(allReports);
+      setSosAlerts(allSosAlerts);
       
       // Calculate metrics
       const pendingCount = allReports.filter(r => r.verificationStatus === 'pending').length;
@@ -82,6 +95,7 @@ const OfficialConsole = () => {
         verified: verifiedCount,
         rejected: rejectedCount,
         critical: criticalCount,
+        activeSos: allSosAlerts.filter(alert => alert.status === 'ACTIVE').length,
         dailyTarget: 50,
         verificationRate: allReports.length > 0 ? Math.round((verifiedCount / allReports.length) * 100) : 0,
         avgResponseTime: calculateAverageVerificationTime(allReports.filter(r => r.verifiedAt))
@@ -95,8 +109,7 @@ const OfficialConsole = () => {
   };
 
   const loadAllReportsForVerification = () => {
-    // Load all reports regardless of status for official verification
-    const pendingReports = localDb.getCollection('pendingVerification') || [];
+    // Load all reports from canonical shared collection
     const userReports = localDb.getCollection('userReports') || [];
 
     // Demo data for demonstration purposes - Critical alerts near Mumbai coast
@@ -104,133 +117,142 @@ const OfficialConsole = () => {
       {
         id: 'demo-6',
         timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+        submittedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         hazardType: 'tsunami',
+        type: 'tsunami',
         severity: 'critical',
         status: 'verified',
         verificationStatus: 'verified',
+        reportedBy: 'Mumbai Coastal Authority',
+        reportedByRole: 'official',
         location: {
           address: 'Versova Beach, Mumbai Coast',
-          coordinates: { latitude: 19.0400, longitude: 72.8200 }
+          name: 'Versova Beach, Mumbai Coast',
+          coordinates: { latitude: 19.0400, longitude: 72.8200, lat: 19.0400, lng: 72.8200 }
         },
         description: 'CRITICAL: Tsunami warning issued for Versova Beach area. Immediate evacuation advised.',
         reporter: {
           name: 'Mumbai Coastal Authority',
+          role: 'official',
           phone: '+91-22-1234-5678',
           email: 'coastal@mumbai.gov.in'
         },
         media: [],
-        verifiedAt: new Date(Date.now() - 25 * 60 * 1000),
+        verifiedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
         verifiedBy: 'Dr. Priya Sharma',
         officialNotes: 'Verified by Mumbai Coastal Authority. Immediate action required.'
       },
       {
         id: 'demo-7',
         timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+        submittedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         hazardType: 'storm_surge',
+        type: 'storm_surge',
         severity: 'critical',
         status: 'verified',
         verificationStatus: 'verified',
+        reportedBy: 'Mumbai Weather Station',
+        reportedByRole: 'official',
         location: {
           address: 'Powai Lake Coastal Area, Mumbai',
-          coordinates: { latitude: 19.1000, longitude: 72.9000 }
+          name: 'Powai Lake Coastal Area, Mumbai',
+          coordinates: { latitude: 19.1000, longitude: 72.9000, lat: 19.1000, lng: 72.9000 }
         },
         description: 'CRITICAL: Severe storm surge detected near Powai coastal area. High alert issued.',
         reporter: {
           name: 'Mumbai Weather Station',
+          role: 'official',
           phone: '+91-22-2345-6789',
           email: 'weather@mumbai.gov.in'
         },
         media: [],
-        verifiedAt: new Date(Date.now() - 40 * 60 * 1000),
+        verifiedAt: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
         verifiedBy: 'Dr. Priya Sharma',
         officialNotes: 'Confirmed by meteorological department. High alert status.'
       },
       {
         id: 'demo-8',
         timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+        submittedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
         hazardType: 'high_waves',
+        type: 'high_waves',
         severity: 'critical',
         status: 'verified',
         verificationStatus: 'verified',
+        reportedBy: 'Mumbai Beach Authority',
+        reportedByRole: 'official',
         location: {
           address: 'Aksa Beach, Mumbai Coast',
-          coordinates: { latitude: 19.0200, longitude: 72.8500 }
+          name: 'Aksa Beach, Mumbai Coast',
+          coordinates: { latitude: 19.0200, longitude: 72.8500, lat: 19.0200, lng: 72.8500 }
         },
         description: 'CRITICAL: Extremely dangerous high waves at Aksa Beach. Beach closed immediately.',
         reporter: {
           name: 'Mumbai Beach Authority',
+          role: 'official',
           phone: '+91-22-3456-7890',
           email: 'beach@mumbai.gov.in'
         },
         media: [],
-        verifiedAt: new Date(Date.now() - 10 * 60 * 1000),
+        verifiedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         verifiedBy: 'Dr. Priya Sharma',
         officialNotes: 'Beach closure implemented. Public safety ensured.'
       }
     ];
 
-    // Combine pending reports from different sources
-    const allReports = [
-      // Demo reports for demonstration
-      ...demoReports,
-      // Direct pending reports
-      ...pendingReports.map(report => ({
+    // Normalize canonical user reports from shared database
+    const normalizedUserReports = userReports.map(report => {
+      const submitterName = report.reportedBy || report.reporterName || report.reporter?.name || report.contactName || 'Anonymous';
+      const submitterRole = report.reportedByRole || report.reporterRole || report.reporter?.role || report.source || 'citizen';
+      const rawTimestamp = report.timestamp || report.submittedAt || report.createdAt || Date.now();
+      const locationObj = typeof report.location === 'object' && report.location ? report.location : {};
+      const addressStr = locationObj.address?.address || locationObj.address || locationObj.name || (typeof report.location === 'string' ? report.location : 'Reported Location');
+      const latVal = locationObj.coordinates?.latitude ?? locationObj.coordinates?.lat ?? locationObj.lat ?? report.lat ?? 19.0760;
+      const lngVal = locationObj.coordinates?.longitude ?? locationObj.coordinates?.lng ?? locationObj.lng ?? report.lng ?? 72.8777;
+
+      return {
         ...report,
-        timestamp: new Date(report.timestamp),
-        reporter: report.contactInfo || {
-          name: report.reportedBy || 'Anonymous',
-          phone: 'Not provided',
-          email: 'Not provided'
+        id: report.id,
+        timestamp: new Date(rawTimestamp),
+        submittedAt: report.submittedAt || new Date(rawTimestamp).toISOString(),
+        hazardType: report.hazardType || report.type || 'general',
+        type: report.hazardType || report.type || 'general',
+        severity: report.severity || 'medium',
+        status: report.status || report.verificationStatus || 'pending_verification',
+        verificationStatus: report.verificationStatus || (report.status === 'verified' ? 'verified' : report.status === 'rejected' ? 'rejected' : 'pending'),
+        location: {
+          ...locationObj,
+          address: addressStr,
+          name: locationObj.name || addressStr,
+          coordinates: {
+            latitude: latVal,
+            longitude: lngVal,
+            lat: latVal,
+            lng: lngVal
+          },
+          lat: latVal,
+          lng: lngVal
         },
-        media: report.mediaFiles || [],
-        hazardType: report.type || report.hazardType
-      })),
-      
-      // User reports that are still pending
-      ...userReports
-        .filter(report => report.verificationStatus === 'pending' || report.status === 'pending_verification')
-        .map(report => ({
-          id: report.id,
-          timestamp: new Date(report.submittedAt),
-          hazardType: report.hazardType,
-          severity: report.severity,
-          status: report.verificationStatus || 'pending',
-          verificationStatus: report.verificationStatus || 'pending',
-          location: report.location,
-          description: report.description,
-          reporter: {
-            name: report.contactName || 'Anonymous',
-            phone: report.contactPhone || 'Not provided',
-            email: report.contactEmail || 'Not provided'
-          },
-          media: report.mediaFiles || []
-        })),
-      
-      // Already processed reports for reference
-      ...userReports
-        .filter(report => report.verificationStatus === 'verified' || report.verificationStatus === 'rejected')
-        .map(report => ({
-          id: report.id,
-          timestamp: new Date(report.submittedAt),
-          hazardType: report.hazardType,
-          severity: report.severity,
-          status: report.verificationStatus,
-          verificationStatus: report.verificationStatus,
-          location: report.location,
-          description: report.description,
-          reporter: {
-            name: report.contactName || 'Anonymous',
-            phone: report.contactPhone || 'Not provided',
-            email: report.contactEmail || 'Not provided'
-          },
-          media: report.mediaFiles || [],
-          verifiedAt: report.verifiedAt,
-          verifiedBy: report.verifiedBy,
-          rejectedAt: report.rejectedAt,
-          rejectedBy: report.rejectedBy,
-          officialNotes: report.officialNotes
-        }))
-    ];
+        description: report.description || '',
+        reportedBy: submitterName,
+        reportedByRole: submitterRole,
+        reporter: {
+          name: submitterName,
+          role: submitterRole,
+          phone: report.reporter?.phone || report.contactPhone || report.contactInfo?.phone || 'Not provided',
+          email: report.reporter?.email || report.contactEmail || report.contactInfo?.email || 'Not provided'
+        },
+        media: report.media || report.mediaFiles || [],
+        verifiedAt: report.verifiedAt,
+        verifiedBy: report.verifiedBy,
+        rejectedAt: report.rejectedAt,
+        rejectedBy: report.rejectedBy,
+        officialNotes: report.officialNotes
+      };
+    });
+
+    // Combine normalized reports and demo reports
+    const allReports = [...normalizedUserReports, ...demoReports];
 
     // Remove duplicates based on ID
     const uniqueReports = allReports.reduce((acc, report) => {
@@ -361,66 +383,39 @@ const OfficialConsole = () => {
 
   const handleVerifyReport = async (reportIds, adminNotes = '') => {
     const idsArray = Array.isArray(reportIds) ? reportIds : [reportIds];
+    const verifierName = user?.name || user?.id || 'Official';
+    const nowIso = new Date().toISOString();
     
     setBulkActionLoading(true);
 
     try {
       for (const reportId of idsArray) {
-        // Update in pending verification queue
-        const pendingRecord = localDb.getCollection('pendingVerification').find(r => r.id === reportId);
-        
-        if (pendingRecord) {
-          // Create verified hazard record
-          const verifiedHazard = {
-            ...pendingRecord,
+        // Update canonical user reports
+        const updated = localDb.update('userReports', reportId, (report) => {
+          const verifiedRecord = {
+            ...report,
             status: 'verified',
             verificationStatus: 'verified',
-            verifiedAt: new Date().toISOString(),
-            verifiedBy: user.id,
+            verifiedAt: nowIso,
+            verifiedBy: verifierName,
             officialNotes: adminNotes
           };
 
-          // Add to active hazards
-          localDb.insert('hazardReports', verifiedHazard);
-          
-          // Update legacy storage
-          try {
-            const legacyHazards = JSON.parse(localStorage.getItem('hazardReports') || '[]');
-            legacyHazards.push(verifiedHazard);
-            localStorage.setItem('hazardReports', JSON.stringify(legacyHazards));
-          } catch {}
-        }
+          // Also update/insert in hazardReports for immediate map display
+          localDb.insert('hazardReports', {
+            ...verifiedRecord,
+            type: verifiedRecord.hazardType || verifiedRecord.type,
+            lat: verifiedRecord.location?.coordinates?.lat || verifiedRecord.location?.lat || verifiedRecord.lat,
+            lng: verifiedRecord.location?.coordinates?.lng || verifiedRecord.location?.lng || verifiedRecord.lng,
+          });
 
-        // Update user reports
-        localDb.update('userReports', reportId, (report) => ({
-          ...report,
-          status: 'verified',
-          verificationStatus: 'verified',
-          verifiedAt: new Date().toISOString(),
-          verifiedBy: user.id,
-          officialNotes: adminNotes
-        }));
+          return verifiedRecord;
+        });
 
-        // Remove from pending queue
+        // Update pending queue
         const pendingReports = localDb.getCollection('pendingVerification');
         const filteredPending = pendingReports.filter(r => r.id !== reportId);
         localDb.setCollection('pendingVerification', filteredPending);
-
-        // Update legacy user reports
-        try {
-          const legacyUserReports = JSON.parse(localStorage.getItem('userReports') || '[]');
-          const updatedUserReports = legacyUserReports.map(r => 
-            r.id === reportId ? { 
-              ...r, 
-              status: 'verified', 
-              verificationStatus: 'verified',
-              verifiedAt: new Date().toISOString(),
-              verifiedBy: user.id,
-              officialNotes: adminNotes
-            } : r
-          );
-          localStorage.setItem('userReports', JSON.stringify(updatedUserReports));
-        } catch {}
       }
 
       // Update local state
@@ -430,8 +425,8 @@ const OfficialConsole = () => {
               ...report, 
               status: 'verified',
               verificationStatus: 'verified',
-              verifiedAt: new Date().toISOString(),
-              verifiedBy: user.id,
+              verifiedAt: nowIso,
+              verifiedBy: verifierName,
               officialNotes: adminNotes
             }
           : report
@@ -441,13 +436,15 @@ const OfficialConsole = () => {
       setSelectedReports([]);
       setMetrics(prev => ({
         ...prev,
-        pending: prev.pending - idsArray.length,
-        verified: prev.verified + idsArray.length
+        pending: Math.max(0, (prev.pending || 0) - idsArray.length),
+        verified: (prev.verified || 0) + idsArray.length
       }));
 
-      // Notify real-time listeners
-      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
+      // Notify real-time listeners across all channels
+      realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
       realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
+      realTimeService.notifyListeners('pendingVerification', localDb.getCollection('pendingVerification'));
 
     } catch (error) {
       console.error('Error verifying reports:', error);
@@ -458,6 +455,8 @@ const OfficialConsole = () => {
 
   const handleRejectReport = async (reportIds, adminNotes = '') => {
     const idsArray = Array.isArray(reportIds) ? reportIds : [reportIds];
+    const rejectorName = user?.name || user?.id || 'Official';
+    const nowIso = new Date().toISOString();
     
     setBulkActionLoading(true);
 
@@ -468,33 +467,18 @@ const OfficialConsole = () => {
           ...report,
           status: 'rejected',
           verificationStatus: 'rejected',
-          rejectedAt: new Date().toISOString(),
-          rejectedBy: user.id,
+          rejectedAt: nowIso,
+          rejectedBy: rejectorName,
           officialNotes: adminNotes
         }));
+
+        // Remove from hazardReports if present
+        localDb.deleteItem('hazardReports', reportId);
 
         // Remove from pending queue
         const pendingReports = localDb.getCollection('pendingVerification');
         const filteredPending = pendingReports.filter(r => r.id !== reportId);
         localDb.setCollection('pendingVerification', filteredPending);
-
-        // Update legacy storage
-        try {
-          const legacyUserReports = JSON.parse(localStorage.getItem('userReports') || '[]');
-          const updatedUserReports = legacyUserReports.map(r => 
-            r.id === reportId 
-              ? { 
-                  ...r, 
-                  status: 'rejected', 
-                  verificationStatus: 'rejected',
-                  rejectedAt: new Date().toISOString(),
-                  rejectedBy: user.id,
-                  officialNotes: adminNotes
-                } 
-              : r
-          );
-          localStorage.setItem('userReports', JSON.stringify(updatedUserReports));
-        } catch {}
       }
 
       // Update local state
@@ -504,8 +488,8 @@ const OfficialConsole = () => {
               ...report, 
               status: 'rejected',
               verificationStatus: 'rejected',
-              rejectedAt: new Date().toISOString(),
-              rejectedBy: user.id,
+              rejectedAt: nowIso,
+              rejectedBy: rejectorName,
               officialNotes: adminNotes
             }
           : report
@@ -514,9 +498,15 @@ const OfficialConsole = () => {
       setSelectedReports([]);
       setMetrics(prev => ({
         ...prev,
-        pending: prev.pending - idsArray.length,
-        rejected: prev.rejected + idsArray.length
+        pending: Math.max(0, (prev.pending || 0) - idsArray.length),
+        rejected: (prev.rejected || 0) + idsArray.length
       }));
+
+      // Notify real-time listeners across all channels
+      realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
+      realTimeService.notifyListeners('pendingVerification', localDb.getCollection('pendingVerification'));
 
     } catch (error) {
       console.error('Error rejecting reports:', error);
@@ -527,6 +517,8 @@ const OfficialConsole = () => {
 
   const handleMarkUnderReview = async (reportIds) => {
     const idsArray = Array.isArray(reportIds) ? reportIds : [reportIds];
+    const reviewerName = user?.name || user?.id || 'Official';
+    const nowIso = new Date().toISOString();
     
     setBulkActionLoading(true);
 
@@ -537,26 +529,9 @@ const OfficialConsole = () => {
           ...report,
           status: 'under_review',
           verificationStatus: 'under_review',
-          reviewStartedAt: new Date().toISOString(),
-          reviewedBy: user.id
+          reviewStartedAt: nowIso,
+          reviewedBy: reviewerName
         }));
-
-        // Update legacy storage
-        try {
-          const legacyUserReports = JSON.parse(localStorage.getItem('userReports') || '[]');
-          const updatedUserReports = legacyUserReports.map(r => 
-            r.id === reportId 
-              ? { 
-                  ...r, 
-                  status: 'under_review', 
-                  verificationStatus: 'under_review',
-                  reviewStartedAt: new Date().toISOString(),
-                  reviewedBy: user.id
-                } 
-              : r
-          );
-          localStorage.setItem('userReports', JSON.stringify(updatedUserReports));
-        } catch {}
       }
 
       // Update local state
@@ -566,13 +541,18 @@ const OfficialConsole = () => {
               ...report, 
               status: 'under_review',
               verificationStatus: 'under_review',
-              reviewStartedAt: new Date().toISOString(),
-              reviewedBy: user.id
+              reviewStartedAt: nowIso,
+              reviewedBy: reviewerName
             }
           : report
       ));
 
       setSelectedReports([]);
+
+      // Notify real-time listeners across all channels
+      realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('pendingVerification', localDb.getCollection('pendingVerification'));
 
     } catch (error) {
       console.error('Error marking reports under review:', error);
@@ -584,6 +564,16 @@ const OfficialConsole = () => {
   const handleCreateHotspot = async (hotspotData) => {
     console.log('Creating hotspot:', hotspotData);
     // In real app, this would make API call to create hotspot
+  };
+
+  const handleSosStatusChange = (alertId, status) => {
+    const officialName = user?.name || user?.id || 'Official';
+    sosService.updateSosStatus(alertId, status, officialName);
+    setSosAlerts(sosService.getSosAlerts().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+  };
+
+  const openSosLocation = (alert) => {
+    window.open(`https://www.google.com/maps?q=${alert.latitude},${alert.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleLogout = () => {
@@ -677,7 +667,7 @@ const OfficialConsole = () => {
   }
 
   return (
-    <AuthenticationGuard user={user} requiredRoles={['official', 'analyst']}>
+    <AuthenticationGuard user={user} requiredRoles={['official']}>
       <div className="min-h-screen bg-background">
         <Header user={user} onLogout={handleLogout} />
         
@@ -784,6 +774,134 @@ const OfficialConsole = () => {
                   From submission to verification
                 </div>
               </div>
+            </div>
+
+            {/* Emergency SOS Queue */}
+            <div className="bg-card border border-error/30 rounded-lg mb-6 overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-error/20 bg-error/5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-error/10 rounded-lg flex items-center justify-center">
+                    <Icon name="Siren" size={22} className="text-error" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Emergency SOS</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {metrics.activeSos || 0} active alerts from the shared SOS store
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  iconName="RefreshCw"
+                  onClick={loadData}
+                >
+                  Refresh
+                </Button>
+              </div>
+
+              {sosAlerts.length > 0 ? (
+                <div className="divide-y divide-border">
+                  {sosAlerts.map((alert) => {
+                    const isActive = alert.status === 'ACTIVE';
+                    const isAcknowledged = alert.status === 'ACKNOWLEDGED';
+                    return (
+                      <div
+                        key={alert.id}
+                        className={`p-4 ${isActive ? 'bg-error/5 border-l-4 border-l-error' : ''}`}
+                      >
+                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4">
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ${
+                                isActive
+                                  ? 'bg-error/10 text-error border-error/20'
+                                  : isAcknowledged
+                                    ? 'bg-warning/10 text-warning border-warning/20'
+                                    : 'bg-success/10 text-success border-success/20'
+                              }`}>
+                                <Icon name={isActive ? 'Siren' : isAcknowledged ? 'Clock' : 'CheckCircle'} size={12} />
+                                {alert.status}
+                              </span>
+                              <span className="font-mono text-sm text-foreground">{alert.sosId}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(alert.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Location</p>
+                                <p className="text-foreground">{alert.location?.address}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Coordinates</p>
+                                <p className="font-mono text-foreground">
+                                  {Number(alert.latitude).toFixed(6)}, {Number(alert.longitude).toFixed(6)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Accuracy</p>
+                                <p className="text-foreground">
+                                  {alert.accuracy ? `${Math.round(alert.accuracy)}m` : 'Unknown'}
+                                  {alert.isCachedLocation ? ' (cached)' : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            {alert.reporter ? (
+                              <div className="text-sm text-muted-foreground">
+                                Reporter: <span className="text-foreground">{alert.reporter.name || alert.reporter.userId}</span>
+                                {alert.reporter.phone && <span> · {alert.reporter.phone}</span>}
+                                {alert.reporter.email && <span> · {alert.reporter.email}</span>}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">Reporter: Public SOS, not logged in</div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap lg:flex-col gap-2 lg:min-w-40">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              iconName="MapPin"
+                              onClick={() => openSosLocation(alert)}
+                            >
+                              View Location
+                            </Button>
+                            {isActive && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                iconName="CheckCircle"
+                                onClick={() => handleSosStatusChange(alert.id, 'ACKNOWLEDGED')}
+                              >
+                                Acknowledge
+                              </Button>
+                            )}
+                            {(isActive || isAcknowledged) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                iconName="ShieldCheck"
+                                onClick={() => handleSosStatusChange(alert.id, 'RESOLVED')}
+                              >
+                                Resolve
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-6 text-center">
+                  <Icon name="ShieldCheck" size={40} className="text-muted-foreground mx-auto mb-3" />
+                  <p className="font-medium text-foreground">No SOS alerts</p>
+                  <p className="text-sm text-muted-foreground">New public emergency alerts will appear here immediately.</p>
+                </div>
+              )}
             </div>
 
             {/* Filters */}

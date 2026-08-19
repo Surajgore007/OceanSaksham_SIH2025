@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import BottomTabNavigation from '../../components/ui/BottomTabNavigation';
 import AuthenticationGuard from '../../components/ui/AuthenticationGuard';
@@ -7,17 +7,30 @@ import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
 import localDb from '../../utils/localDb';
 import realTimeService from '../../utils/realTimeService';
+import authService from '../../utils/authService';
 
 // Import all components
 import HazardTypeSelector from './components/HazardTypeSelector';
 import LocationPicker from './components/LocationPicker';
-import HazardDetailsForm from './components/HazardDetailsForm';
 import MediaUpload from './components/MediaUpload';
 import ProgressIndicator from './components/ProgressIndicator';
-import SubmissionSummary from './components/SubmissionSummary';
+
+/**
+ * Returns the home dashboard path for a given role.
+ * IDENTITY (who is logged in) and ROUTE (what page) are independent.
+ * Submitting a report must NEVER change the user's role.
+ */
+const getDashboardForRole = (role) => {
+  const dashboards = {
+    citizen: '/main-dashboard',
+    official: '/official-console',
+  };
+  return dashboards[role?.toLowerCase()] || '/main-dashboard';
+};
 
 const ReportSubmission = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,14 +39,8 @@ const ReportSubmission = () => {
   const [isQuickReport, setIsQuickReport] = useState(false);
   const [sourceHazardInfo, setSourceHazardInfo] = useState(null);
 
-  // Mock user data
-  const mockUser = {
-    id: 'user_001',
-    name: 'Rajesh Kumar',
-    email: 'rajesh.kumar@email.com',
-    role: 'citizen',
-    phone: '+91 98765 43210'
-  };
+  // Real authenticated user — NEVER a mock
+  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -49,15 +56,21 @@ const ReportSubmission = () => {
     isQuickReport: false
   });
 
-  const totalSteps = 5; // Including summary step
+  const totalSteps = 3;
 
   const steps = [
-    { id: 1, name: 'Hazard Type', icon: 'AlertTriangle' },
-    { id: 2, name: 'Location', icon: 'MapPin' },
-    { id: 3, name: 'Details', icon: 'FileText' },
-    { id: 4, name: 'Media', icon: 'Camera' },
-    { id: 5, name: 'Review', icon: 'CheckCircle' }
+    { id: 1, name: 'Hazard', icon: 'AlertTriangle' },
+    { id: 2, name: 'Location + Details', icon: 'MapPin' },
+    { id: 3, name: 'Evidence + Submit', icon: 'Camera' }
   ];
+
+  // Keep currentUser in sync with auth state changes
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange((updatedUser) => {
+      setCurrentUser(updatedUser);
+    });
+    return unsubscribe;
+  }, []);
 
   // Check for quick report mode and load pre-filled data
   useEffect(() => {
@@ -119,14 +132,7 @@ const ReportSubmission = () => {
           errors.location = 'Please select a location';
         }
         break;
-        case 3:
-          // Description is now optional - remove validation
-          if (!formData?.severity) {
-            errors.severity = 'Please select a severity level';
-          }
-          break;
-      case 4:
-        // Media is optional, no validation needed
+      case 3:
         break;
     }
 
@@ -159,8 +165,12 @@ const ReportSubmission = () => {
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+    if (!validateStep(1)) {
       setCurrentStep(1);
+      return;
+    }
+    if (!validateStep(2)) {
+      setCurrentStep(2);
       return;
     }
 
@@ -170,74 +180,81 @@ const ReportSubmission = () => {
       // Simulate API submission
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Create report object with PENDING_VERIFICATION status
+      const submitterRole = currentUser?.role || 'citizen';
+      const submitterName = currentUser?.name || (submitterRole.charAt(0).toUpperCase() + submitterRole.slice(1));
+      const submitterId = currentUser?.id || `user_${submitterRole}_${Date.now()}`;
+      const nowIso = new Date().toISOString();
+
+      const normalizedLocation = {
+        name: formData.location?.name || formData.location?.address?.name || formData.location?.address || 'Reported Location',
+        address: formData.location?.address?.address || formData.location?.address || formData.location?.name || 'Reported Location',
+        coordinates: {
+          latitude: formData.location?.coordinates?.latitude ?? formData.location?.coordinates?.lat ?? formData.location?.lat,
+          longitude: formData.location?.coordinates?.longitude ?? formData.location?.coordinates?.lng ?? formData.location?.lng,
+          lat: formData.location?.coordinates?.latitude ?? formData.location?.coordinates?.lat ?? formData.location?.lat,
+          lng: formData.location?.coordinates?.longitude ?? formData.location?.coordinates?.lng ?? formData.location?.lng,
+        },
+        lat: formData.location?.coordinates?.latitude ?? formData.location?.coordinates?.lat ?? formData.location?.lat,
+        lng: formData.location?.coordinates?.longitude ?? formData.location?.coordinates?.lng ?? formData.location?.lng,
+      };
+
+      // Create canonical report object with complete required fields
       const reportData = {
         id: `report_${Date.now()}`,
-        ...formData,
-        submittedAt: new Date().toISOString(),
-        submittedBy: mockUser.id,
+        hazardType: formData.hazardType,
+        type: formData.hazardType,
+        severity: formData.severity || 'medium',
+        description: formData.description || '',
+        location: normalizedLocation,
+        lat: normalizedLocation.lat,
+        lng: normalizedLocation.lng,
+        media: formData.mediaFiles || [],
+        mediaFiles: formData.mediaFiles || [],
         status: 'pending_verification',
         verificationStatus: 'pending',
         priority: formData.severity === 'critical' ? 'high' : 'normal',
+        timestamp: nowIso,
+        submittedAt: nowIso,
+        reportedBy: submitterName,
+        reportedByRole: submitterRole,
+        submittedBy: submitterId,
+        reporterName: submitterName,
+        reporterRole: submitterRole,
+        source: submitterRole,
+        reporter: {
+          name: submitterName,
+          role: submitterRole,
+          phone: formData.contactPhone || currentUser?.phone || 'Not provided',
+          email: formData.contactEmail || currentUser?.email || 'Not provided',
+        },
+        contactInfo: {
+          name: formData.contactName || submitterName,
+          phone: formData.contactPhone || currentUser?.phone || 'Not provided',
+          email: formData.contactEmail || currentUser?.email || 'Not provided',
+        },
+        contactName: formData.contactName || submitterName,
+        contactPhone: formData.contactPhone || currentUser?.phone || '',
+        contactEmail: formData.contactEmail || currentUser?.email || '',
         officialNotes: null,
         verifiedAt: null,
         verifiedBy: null,
         rejectedAt: null,
         rejectedBy: null,
-        // Include related hazard info for tracking
-        relatedToHazard: formData.relatedToHazard,
-        isQuickReport: formData.isQuickReport
+        relatedToHazard: formData.relatedToHazard || null,
+        isQuickReport: !!formData.isQuickReport
       };
 
-      // Store in pending verification queue
-      localDb.insert('pendingReports', reportData);
+      // Store in canonical shared collection
       localDb.insert('userReports', reportData);
+      localDb.insert('pendingVerification', reportData);
+      localDb.insert('pendingReports', reportData);
 
-      // Legacy storage for compatibility
-      try {
-        const legacyUserReports = JSON.parse(localStorage.getItem('userReports') || '[]');
-        legacyUserReports.push(reportData);
-        localStorage.setItem('userReports', JSON.stringify(legacyUserReports));
-      } catch {}
-
-      const pendingRecord = {
-        id: reportData.id,
-        type: reportData.hazardType,
-        severity: reportData.severity,
-        lat: reportData.location?.coordinates?.latitude || 
-             reportData.location?.coordinates?.lat || 
-             reportData.location?.lat,
-        lng: reportData.location?.coordinates?.longitude || 
-             reportData.location?.coordinates?.lng || 
-             reportData.location?.lng,
-        location: reportData.location?.name || 
-                 reportData.location?.label || 
-                 reportData.location?.address || 
-                 'Reported Location',
-        timestamp: new Date(reportData.submittedAt),
-        description: reportData.description,
-        source: 'citizen',
-        status: 'pending_verification',
-        verificationStatus: 'pending',
-        priority: reportData.priority,
-        reportedBy: reportData.submittedBy,
-        contactInfo: {
-          name: reportData.contactName,
-          phone: reportData.contactPhone,
-          email: reportData.contactEmail
-        },
-        mediaFiles: reportData.mediaFiles,
-        relatedToHazard: reportData.relatedToHazard,
-        isQuickReport: reportData.isQuickReport
-      };
-
-      // Store in pending verification queue for officials
-      localDb.insert('pendingVerification', pendingRecord);
-
-      // Notify real-time listeners
-      realTimeService.notifyListeners('pendingReports', localDb.getCollection('pendingReports'));
+      // Notify real-time listeners across all channels
       realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
       realTimeService.notifyListeners('pendingVerification', localDb.getCollection('pendingVerification'));
+      realTimeService.notifyListeners('pendingReports', localDb.getCollection('pendingReports'));
+      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
 
       // Clear draft only if not quick report
       if (!isQuickReport) {
@@ -270,7 +287,9 @@ const ReportSubmission = () => {
     setCurrentStep(1);
     setIsQuickReport(false);
     setSourceHazardInfo(null);
-    navigate('/main-dashboard');
+    // Return to the dashboard that matches the CURRENT user's role —
+    // never silently convert the user to a citizen.
+    navigate(getDashboardForRole(currentUser?.role));
   };
 
   const renderStepContent = () => {
@@ -286,39 +305,38 @@ const ReportSubmission = () => {
         );
       case 2:
         return (
-          <LocationPicker
-            selectedLocation={formData?.location}
-            onLocationSelect={(location) => handleFormDataChange({ location })}
-            isPreFilled={isQuickReport && formData?.location}
-            sourceInfo={sourceHazardInfo}
-          />
+          <div className="space-y-6">
+            <LocationPicker
+              selectedLocation={formData?.location}
+              onLocationSelect={(location) => handleFormDataChange({ location })}
+              isPreFilled={isQuickReport && formData?.location}
+              sourceInfo={sourceHazardInfo}
+            />
+
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-foreground">Short Description</h3>
+                <Icon name="FileText" size={20} className="text-primary" />
+              </div>
+              <textarea
+                value={formData.description}
+                onChange={(e) => handleFormDataChange({ description: e.target.value })}
+                placeholder="Briefly describe what you see..."
+                rows={4}
+                maxLength={400}
+                className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Optional, but helpful for officials. Keep it short.
+              </p>
+            </div>
+          </div>
         );
       case 3:
-        return (
-          <HazardDetailsForm
-            formData={formData}
-            onFormDataChange={handleFormDataChange}
-            errors={formErrors}
-            isPreFilled={isQuickReport}
-            sourceInfo={sourceHazardInfo}
-          />
-        );
-      case 4:
         return (
           <MediaUpload
             uploadedFiles={formData?.mediaFiles}
             onFilesChange={(files) => handleFormDataChange({ mediaFiles: files })}
-          />
-        );
-      case 5:
-        return (
-          <SubmissionSummary
-            formData={formData}
-            onEdit={handleStepEdit}
-            onSubmit={handleSubmit}
-            isSubmitting={isSubmitting}
-            isQuickReport={isQuickReport}
-            sourceInfo={sourceHazardInfo}
           />
         );
       default:
@@ -327,9 +345,9 @@ const ReportSubmission = () => {
   };
 
   return (
-    <AuthenticationGuard user={mockUser}>
+    <AuthenticationGuard user={currentUser} requiredRoles={['citizen', 'official']}>
       <div className="min-h-screen bg-background">
-        <Header user={mockUser} />
+        <Header user={currentUser} />
         
         <main className="pt-16 pb-20 lg:pb-8">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -366,7 +384,7 @@ const ReportSubmission = () => {
             </div>
 
             {/* Navigation Controls */}
-            {currentStep < 5 && (
+            {currentStep <= totalSteps && (
               <div className="flex flex-col sm:flex-row gap-3 justify-between">
                 <Button
                   variant="outline"
@@ -382,7 +400,7 @@ const ReportSubmission = () => {
                 <div className="flex gap-3">
                   <Button
                     variant="ghost"
-                    onClick={() => navigate('/main-dashboard')}
+                    onClick={() => navigate(getDashboardForRole(currentUser?.role))}
                     iconName="X"
                     iconPosition="left"
                   >
@@ -390,12 +408,13 @@ const ReportSubmission = () => {
                   </Button>
                   
                   <Button
-                    onClick={handleNext}
-                    iconName="ArrowRight"
+                    onClick={currentStep === totalSteps ? handleSubmit : handleNext}
+                    loading={isSubmitting}
+                    iconName={currentStep === totalSteps ? 'Send' : 'ArrowRight'}
                     iconPosition="right"
                     className="flex-1 sm:flex-none sm:min-w-[120px]"
                   >
-                    {currentStep === 4 ? 'Review' : 'Next'}
+                    {currentStep === totalSteps ? 'Submit Report' : 'Next'}
                   </Button>
                 </div>
               </div>
@@ -517,7 +536,7 @@ const ReportSubmission = () => {
           </div>
         )}
 
-        <BottomTabNavigation user={mockUser} />
+        <BottomTabNavigation user={currentUser} />
       </div>
     </AuthenticationGuard>
   );

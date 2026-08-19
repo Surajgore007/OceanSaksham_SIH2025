@@ -166,7 +166,7 @@ const MainDashboard = () => {
   };
 
   return (
-    <AuthenticationGuard user={user} requiredRoles={['citizen', 'official', 'analyst']}>
+    <AuthenticationGuard user={user} requiredRoles={['citizen']}>
       <div className="min-h-screen bg-background flex flex-col">
         {/* Header with enhanced user management */}
         <Header user={user} onLogout={handleLogout} />

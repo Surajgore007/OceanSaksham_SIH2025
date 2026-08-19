@@ -1,3 +1,5 @@
+import localDb from './localDb.js';
+
 /**
  * Real-time Service
  * Handles real-time data updates, report verification status, and live map updates
@@ -17,6 +19,7 @@ class RealTimeService {
     this.cache = {
       hazards: [],
       reports: [],
+      sosAlerts: [],
       dashboardStats: null,
     };
 
@@ -93,13 +96,16 @@ class RealTimeService {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          // Expected message format: { type: 'hazards'|'reports'|'dashboardStats'|'report', payload: any }
+          // Expected message format: { type: 'hazards'|'reports'|'sosAlerts'|'dashboardStats'|'report', payload: any }
           if (message?.type === 'hazards') {
             this.cache.hazards = Array.isArray(message?.payload) ? message.payload : [];
             this.notifyListeners('hazards', this.cache.hazards);
           } else if (message?.type === 'reports') {
             this.cache.reports = Array.isArray(message?.payload) ? message.payload : [];
             this.notifyListeners('reports', this.cache.reports);
+          } else if (message?.type === 'sosAlerts') {
+            this.cache.sosAlerts = Array.isArray(message?.payload) ? message.payload : [];
+            this.notifyListeners('sosAlerts', this.cache.sosAlerts);
           } else if (message?.type === 'dashboardStats') {
             this.cache.dashboardStats = message?.payload || null;
             this.notifyListeners('dashboardStats', this.cache.dashboardStats);
@@ -136,24 +142,28 @@ class RealTimeService {
     if (!this.apiBaseUrl) return;
 
     try {
-      const [hazardsRes, reportsRes, statsRes] = await Promise.all([
+      const [hazardsRes, reportsRes, sosRes, statsRes] = await Promise.all([
         fetch(`${this.apiBaseUrl.replace(/\/$/, '')}/hazards`),
         fetch(`${this.apiBaseUrl.replace(/\/$/, '')}/reports`),
+        fetch(`${this.apiBaseUrl.replace(/\/$/, '')}/sos-alerts`),
         fetch(`${this.apiBaseUrl.replace(/\/$/, '')}/dashboard/stats`),
       ]);
 
-      const [hazards, reports, stats] = await Promise.all([
+      const [hazards, reports, sosAlerts, stats] = await Promise.all([
         hazardsRes.ok ? hazardsRes.json() : [],
         reportsRes.ok ? reportsRes.json() : [],
+        sosRes.ok ? sosRes.json() : [],
         statsRes.ok ? statsRes.json() : null,
       ]);
 
       this.cache.hazards = Array.isArray(hazards) ? hazards : [];
       this.cache.reports = Array.isArray(reports) ? reports : [];
+      this.cache.sosAlerts = Array.isArray(sosAlerts) ? sosAlerts : [];
       this.cache.dashboardStats = stats;
 
       this.notifyListeners('hazards', this.cache.hazards);
       this.notifyListeners('reports', this.cache.reports);
+      this.notifyListeners('sosAlerts', this.cache.sosAlerts);
       if (this.cache.dashboardStats) {
         this.notifyListeners('dashboardStats', this.cache.dashboardStats);
       }
@@ -210,16 +220,22 @@ class RealTimeService {
    * Notify listeners of data updates
    */
   notifyListeners(dataType, data) {
-    const typeListeners = this.listeners?.get(dataType);
-    if (typeListeners) {
-      typeListeners?.forEach(callback => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error(`Error in ${dataType} listener:`, error);
-        }
-      });
-    }
+    const notifyType = (type) => {
+      const typeListeners = this.listeners?.get(type);
+      if (typeListeners) {
+        typeListeners?.forEach(callback => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error(`Error in ${type} listener:`, error);
+          }
+        });
+      }
+    };
+
+    notifyType(dataType);
+    if (dataType === 'reports') notifyType('userReports');
+    if (dataType === 'userReports') notifyType('reports');
   }
 
   /**
@@ -256,14 +272,15 @@ class RealTimeService {
    * Simulate report status updates
    */
   simulateReportStatusUpdates() {
-    const userReports = JSON.parse(localStorage.getItem('userReports') || '[]');
+    const userReports = localDb.getCollection('userReports');
     let hasUpdates = false;
 
     userReports?.forEach(report => {
       // Randomly update pending reports to verified
-      if (report?.status === 'pending' && Math.random() < 0.1) { // 10% chance
+      if ((report?.status === 'pending' || report?.status === 'pending_verification') && Math.random() < 0.1) { // 10% chance
         const previousStatus = report?.status;
         report.status = Math.random() < 0.8 ? 'verified' : 'rejected';
+        report.verificationStatus = report.status;
         report.verifiedAt = new Date()?.toISOString();
         report.verifiedBy = 'official_' + Math.floor(Math.random() * 100);
         
@@ -279,8 +296,9 @@ class RealTimeService {
     });
 
     if (hasUpdates) {
-      localStorage.setItem('userReports', JSON.stringify(userReports));
+      localDb.setCollection('userReports', userReports);
       this.notifyListeners('reports', userReports);
+      this.notifyListeners('userReports', userReports);
       this.notifyListeners('reportStatus', { 
         timestamp: new Date()?.toISOString(),
         hasUpdates: true 
@@ -293,7 +311,7 @@ class RealTimeService {
    */
   simulateNewHazardReports() {
     // Get existing hazard data
-    const existingHazards = JSON.parse(localStorage.getItem('hazardReports') || '[]');
+    const existingHazards = localDb.getCollection('hazardReports');
     
     // Occasionally add new verified reports to the map
     if (Math.random() < 0.05) { // 5% chance every 30 seconds
@@ -311,6 +329,7 @@ class RealTimeService {
       const newHazard = {
         id: `hazard_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         type: hazardTypes?.[Math.floor(Math.random() * hazardTypes?.length)],
+        hazardType: hazardTypes?.[Math.floor(Math.random() * hazardTypes?.length)],
         severity: severityLevels?.[Math.floor(Math.random() * severityLevels?.length)],
         lat: randomLocation?.lat + (Math.random() - 0.5) * 0.1, // Add small variation
         lng: randomLocation?.lng + (Math.random() - 0.5) * 0.1,
@@ -318,12 +337,14 @@ class RealTimeService {
         timestamp: new Date(),
         description: 'Real-time hazard update from coastal monitoring',
         reportedBy: 'Automated System',
+        reportedByRole: 'official',
         status: 'verified',
+        verificationStatus: 'verified',
         priority: 'normal'
       };
 
       const updatedHazards = [...existingHazards, newHazard];
-      localStorage.setItem('hazardReports', JSON.stringify(updatedHazards));
+      localDb.setCollection('hazardReports', updatedHazards);
 
       // Notify map listeners
       this.notifyListeners('hazards', updatedHazards);
@@ -368,8 +389,8 @@ class RealTimeService {
       }
     }
 
-    const userReports = JSON.parse(localStorage.getItem('oceansaksham_col_userReports') || localStorage.getItem('userReports') || '[]');
-    const allReports = JSON.parse(localStorage.getItem('oceansaksham_col_hazardReports') || localStorage.getItem('hazardReports') || '[]');
+    const userReports = localDb.getCollection('userReports');
+    const allReports = localDb.getCollection('hazardReports');
     
     let updated = false;
 
@@ -380,6 +401,7 @@ class RealTimeService {
       userReports[userReportIndex] = {
         ...userReports?.[userReportIndex],
         status: newStatus,
+        verificationStatus: newStatus,
         verifiedAt: new Date()?.toISOString(),
         verifiedBy: officialId,
         previousStatus
@@ -391,19 +413,20 @@ class RealTimeService {
     const allReportIndex = allReports?.findIndex(r => r?.id === reportId);
     if (allReportIndex !== -1) {
       allReports[allReportIndex].status = newStatus;
+      allReports[allReportIndex].verificationStatus = newStatus;
       allReports[allReportIndex].verifiedAt = new Date()?.toISOString();
       allReports[allReportIndex].verifiedBy = officialId;
       updated = true;
     }
 
     if (updated) {
-      // Prefer namespaced collections
-      localStorage.setItem('oceansaksham_col_userReports', JSON.stringify(userReports));
-      localStorage.setItem('oceansaksham_col_hazardReports', JSON.stringify(allReports));
+      localDb.setCollection('userReports', userReports);
+      localDb.setCollection('hazardReports', allReports);
 
       // Notify all relevant listeners
       this.notifyReportListeners(reportId, userReports?.[userReportIndex]);
       this.notifyListeners('reports', userReports);
+      this.notifyListeners('userReports', userReports);
       this.notifyListeners('hazards', allReports);
       this.notifyListeners('reportVerification', {
         reportId,
@@ -442,11 +465,15 @@ class RealTimeService {
   getCachedData(dataType) {
     switch (dataType) {
       case 'reports':
-        return this.cache.reports?.length ? this.cache.reports : JSON.parse(localStorage.getItem('oceansaksham_col_userReports') || localStorage.getItem('userReports') || '[]');
+      case 'userReports':
+        return this.cache.reports?.length ? this.cache.reports : localDb.getCollection('userReports');
       case 'hazards':
-        return this.cache.hazards?.length ? this.cache.hazards : JSON.parse(localStorage.getItem('oceansaksham_col_hazardReports') || localStorage.getItem('hazardReports') || '[]');
+      case 'hazardReports':
+        return this.cache.hazards?.length ? this.cache.hazards : localDb.getCollection('hazardReports');
       case 'dashboardStats':
         return this.cache.dashboardStats;
+      case 'sosAlerts':
+        return this.cache.sosAlerts?.length ? this.cache.sosAlerts : localDb.getCollection('sosAlerts');
       default:
         return null;
     }

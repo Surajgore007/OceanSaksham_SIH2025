@@ -3,6 +3,8 @@ import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import localDb from '../../../utils/localDb';
+import realTimeService from '../../../utils/realTimeService';
 
 const HotspotCreator = ({ 
   isOpen = false,
@@ -75,25 +77,47 @@ const HotspotCreator = ({
 
     setIsCreating(true);
     try {
+      const nowIso = new Date().toISOString();
       const newHotspot = {
         ...hotspotData,
         id: `hotspot_${Date.now()}`,
         lat: hotspotData.coordinates.lat,
         lng: hotspotData.coordinates.lng,
-        location: hotspotData.address || `${hotspotData.coordinates.lat.toFixed(4)}, ${hotspotData.coordinates.lng.toFixed(4)}`,
-        timestamp: new Date(),
-        createdAt: new Date().toISOString(),
-        createdBy: 'current_official',
+        location: {
+          address: hotspotData.address || `${hotspotData.coordinates.lat.toFixed(4)}, ${hotspotData.coordinates.lng.toFixed(4)}`,
+          name: hotspotData.name,
+          coordinates: {
+            lat: hotspotData.coordinates.lat,
+            lng: hotspotData.coordinates.lng,
+            latitude: hotspotData.coordinates.lat,
+            longitude: hotspotData.coordinates.lng
+          },
+          lat: hotspotData.coordinates.lat,
+          lng: hotspotData.coordinates.lng
+        },
+        timestamp: nowIso,
+        submittedAt: nowIso,
+        createdAt: nowIso,
+        createdBy: 'Official Authority',
+        reportedBy: 'Official Authority',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
+        verificationStatus: 'verified',
         type: hotspotData.hazardType,
-        reportedBy: 'Official Authority'
+        hazardType: hotspotData.hazardType,
+        media: [],
+        mediaFiles: []
       };
 
-      // Store in localStorage
-      const existingHotspots = JSON.parse(localStorage.getItem('hazardReports') || '[]');
-      existingHotspots.push(newHotspot);
-      localStorage.setItem('hazardReports', JSON.stringify(existingHotspots));
+      // Store in canonical collections
+      localDb.insert('hazardReports', newHotspot);
+      localDb.insert('userReports', newHotspot);
+
+      // Notify real-time listeners
+      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
+      realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
 
       // Call parent callback
       await onCreateHotspot(newHotspot);

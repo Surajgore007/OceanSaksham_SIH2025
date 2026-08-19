@@ -37,11 +37,6 @@ const RegistrationForm = ({ onSubmit, isLoading = false }) => {
       value: 'official', 
       label: 'Government Official',
       description: 'Verify reports and manage emergency responses'
-    },
-    { 
-      value: 'analyst', 
-      label: 'Data Analyst',
-      description: 'Analyze hazard patterns and generate insights'
     }
   ];
 
@@ -105,10 +100,10 @@ const RegistrationForm = ({ onSubmit, isLoading = false }) => {
     }
     
     if (step === 3) {
-      if ((formData?.role === 'official' || formData?.role === 'analyst') && !formData?.department) {
+      if (formData?.role === 'official' && !formData?.department) {
         newErrors.department = 'Department selection is required';
       }
-      if ((formData?.role === 'official' || formData?.role === 'analyst') && !formData?.credentials?.trim()) {
+      if (formData?.role === 'official' && !formData?.credentials?.trim()) {
         newErrors.credentials = 'Credentials/ID is required for official roles';
       }
       if (!formData?.agreeTerms) newErrors.agreeTerms = 'You must agree to the terms';
@@ -293,7 +288,7 @@ const RegistrationForm = ({ onSubmit, isLoading = false }) => {
                 <Icon 
                   name={
                     formData?.role === 'citizen' ? 'Users' :
-                    formData?.role === 'official' ? 'Shield' : 'BarChart3'
+                    'Shield'
                   } 
                   size={20} 
                   className="text-primary mt-0.5" 
@@ -321,7 +316,7 @@ const RegistrationForm = ({ onSubmit, isLoading = false }) => {
             </p>
           </div>
 
-          {(formData?.role === 'official' || formData?.role === 'analyst') && (
+          {formData?.role === 'official' && (
             <>
               <Select
                 label="Department/Organization"

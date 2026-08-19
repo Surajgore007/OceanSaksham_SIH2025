@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/Appicon';
 import Button from '../../components/ui/Button';
@@ -6,6 +6,7 @@ import Header from '../../components/ui/Header';
 import BottomTabNavigation from '../../components/ui/BottomTabNavigation';
 import AuthenticationGuard from '../../components/ui/AuthenticationGuard';
 import OfflineStatusIndicator from '../../components/ui/OfflineStatusIndicator';
+import authService from '../../utils/authService';
 import AlertComposer from './components/AlertComposer';
 import ActiveAlertsPanel from './components/ActiveAlertsPanel';
 import AlertHistory from './components/AlertHistory';
@@ -15,14 +16,17 @@ import GeographicTargeting from './components/GeographicTargeting';
 const ConsoleAlerts = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('compose');
-  const [user] = useState({
-    id: 'USR-001',
-    name: 'Dr. Rajesh Kumar',
-    email: 'rajesh.kumar@oceansaksham.gov.in',
-    role: 'Official',
-    department: 'Coastal Emergency Management',
-    location: 'Kochi Regional Office'
-  });
+
+  // Real authenticated user — NEVER a hardcoded mock.
+  const [user, setUser] = useState(() => authService.getCurrentUser());
+
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange((updatedUser) => {
+      setUser(updatedUser);
+    });
+    return unsubscribe;
+  }, []);
 
   const tabs = [
     {

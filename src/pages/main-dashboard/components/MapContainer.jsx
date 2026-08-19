@@ -3,6 +3,7 @@ import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import locationService from '../../../utils/locationService';
 import realTimeService from '../../../utils/realTimeService';
+import localDb from '../../../utils/localDb';
 
 const MapContainer = ({ 
   hazardData = [], 
@@ -47,7 +48,7 @@ const MapContainer = ({
       }
 
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCKh9ng5UL9TgJqDWlKZ6VPtxAUiR6GGeo`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`;
       script.async = true;
       script.defer = true;
       
@@ -168,13 +169,23 @@ const MapContainer = ({
     
     realTimeService?.start();
     
-    const unsubscribeHazards = realTimeService?.subscribe('hazards', (updatedHazards) => {
-      setRealTimeHazards(updatedHazards);
+    const unsubscribeHazards = realTimeService?.subscribe('hazards', () => {
+      loadHazardData();
       setLastUpdate(new Date());
     });
 
-    const unsubscribeNewHazard = realTimeService?.subscribe('newHazard', (newHazard) => {
-      setRealTimeHazards(prev => [...prev, newHazard]);
+    const unsubscribeReports = realTimeService?.subscribe('reports', () => {
+      loadHazardData();
+      setLastUpdate(new Date());
+    });
+
+    const unsubscribeUserReports = realTimeService?.subscribe('userReports', () => {
+      loadHazardData();
+      setLastUpdate(new Date());
+    });
+
+    const unsubscribeNewHazard = realTimeService?.subscribe('newHazard', () => {
+      loadHazardData();
       setLastUpdate(new Date());
     });
 
@@ -187,6 +198,8 @@ const MapContainer = ({
 
     return () => {
       unsubscribeHazards?.();
+      unsubscribeReports?.();
+      unsubscribeUserReports?.();
       unsubscribeNewHazard?.();
       locationUnsubscribe?.();
       realTimeService?.stop();
@@ -204,20 +217,23 @@ const MapContainer = ({
   }, []);
 
   const loadHazardData = () => {
-    const userReports = JSON.parse(localStorage.getItem('userReports') || '[]');
-    const officialHazards = JSON.parse(localStorage.getItem('hazardReports') || '[]');
+    const userReports = localDb.getCollection('userReports') || [];
+    const officialHazards = localDb.getCollection('hazardReports') || [];
     
     // Demo data for demonstration purposes - India's coastal areas
     const demoHazards = [
       {
         id: 'demo-1',
         type: 'tsunami',
+        hazardType: 'tsunami',
         severity: 'high',
         lat: 19.0760,
         lng: 72.8777,
         location: 'Gateway of India, Mumbai Coast',
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
         description: 'High wave activity detected near Mumbai coast. Authorities monitoring situation.',
+        reportedBy: 'Mumbai Coastal Authority',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -225,12 +241,15 @@ const MapContainer = ({
       {
         id: 'demo-2',
         type: 'flooding',
+        hazardType: 'flooding',
         severity: 'medium',
         lat: 12.9716,
         lng: 77.5946,
         location: 'Chennai Coast, Tamil Nadu',
         timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
         description: 'Coastal flooding reported in Chennai coastal area due to high tide.',
+        reportedBy: 'Rajesh Kumar',
+        reportedByRole: 'citizen',
         source: 'citizen',
         status: 'verified',
         verificationStatus: 'verified'
@@ -238,12 +257,15 @@ const MapContainer = ({
       {
         id: 'demo-3',
         type: 'high_waves',
+        hazardType: 'high_waves',
         severity: 'critical',
         lat: 8.5241,
         lng: 76.9366,
         location: 'Kochi Coast, Kerala',
         timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
         description: 'Dangerous high waves observed at Kochi coast. Public advised to stay away.',
+        reportedBy: 'Kochi Port Authority',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -251,12 +273,15 @@ const MapContainer = ({
       {
         id: 'demo-4',
         type: 'storm_surge',
+        hazardType: 'storm_surge',
         severity: 'high',
         lat: 22.5726,
         lng: 88.3639,
         location: 'Kolkata Coast, West Bengal',
         timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
         description: 'Storm surge warning issued for Kolkata coastal area.',
+        reportedBy: 'Kolkata Weather Station',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -264,12 +289,15 @@ const MapContainer = ({
       {
         id: 'demo-5',
         type: 'flooding',
+        hazardType: 'flooding',
         severity: 'low',
         lat: 15.2993,
         lng: 74.1240,
         location: 'Goa Coast',
         timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
         description: 'Minor coastal flooding in Goa area due to heavy rainfall.',
+        reportedBy: 'Goa Coastal Guard',
+        reportedByRole: 'citizen',
         source: 'citizen',
         status: 'verified',
         verificationStatus: 'verified'
@@ -277,12 +305,15 @@ const MapContainer = ({
       {
         id: 'demo-6',
         type: 'tsunami',
+        hazardType: 'tsunami',
         severity: 'critical',
         lat: 19.0400,
         lng: 72.8200,
         location: 'Versova Beach, Mumbai Coast',
         timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
         description: 'CRITICAL: Tsunami warning issued for Versova Beach area. Immediate evacuation advised.',
+        reportedBy: 'Dr. Priya Sharma',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -290,12 +321,15 @@ const MapContainer = ({
       {
         id: 'demo-7',
         type: 'storm_surge',
+        hazardType: 'storm_surge',
         severity: 'critical',
         lat: 19.1000,
         lng: 72.9000,
         location: 'Powai Lake Coastal Area, Mumbai',
         timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
         description: 'CRITICAL: Severe storm surge detected near Powai coastal area. High alert issued.',
+        reportedBy: 'Dr. Priya Sharma',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -303,12 +337,15 @@ const MapContainer = ({
       {
         id: 'demo-8',
         type: 'high_waves',
+        hazardType: 'high_waves',
         severity: 'critical',
         lat: 19.0200,
         lng: 72.8500,
         location: 'Aksa Beach, Mumbai Coast',
         timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
         description: 'CRITICAL: Extremely dangerous high waves at Aksa Beach. Beach closed immediately.',
+        reportedBy: 'Dr. Priya Sharma',
+        reportedByRole: 'official',
         source: 'official',
         status: 'verified',
         verificationStatus: 'verified'
@@ -318,54 +355,74 @@ const MapContainer = ({
     const combinedHazards = [
       // Demo hazards for demonstration
       ...demoHazards,
-      // Only include user reports that are VERIFIED and NOT REJECTED
+      // Include user reports that are not rejected
       ...userReports
         ?.filter(report => {
-          const isVerified = report?.verificationStatus === 'verified' || 
-                           (report?.status === 'verified' && report?.verificationStatus !== 'rejected');
-          const isNotRejected = report?.verificationStatus !== 'rejected' && 
-                               report?.status !== 'rejected';
-          const hasLocation = report?.location;
-          
-          return isVerified && isNotRejected && hasLocation;
+          const isNotRejected = report?.verificationStatus !== 'rejected' && report?.status !== 'rejected';
+          const hasLocation = report?.location || (report?.lat != null && report?.lng != null);
+          return isNotRejected && hasLocation;
         })
-        ?.map(report => ({
-          id: report?.id,
-          type: report?.hazardType,
-          severity: report?.severity,
-          lat: report?.location?.coordinates?.latitude || 
-               report?.location?.coordinates?.lat || 
-               report?.location?.lat || 
-               report?.location?.latitude,
-          lng: report?.location?.coordinates?.longitude || 
-               report?.location?.coordinates?.lng || 
-               report?.location?.lng || 
-               report?.location?.longitude,
-          location: report?.location?.address?.address || 
-                   report?.location?.address || 
-                   report?.location?.name || 
-                   'Unknown Location',
-          timestamp: new Date(report.submittedAt),
-          description: report?.description,
-          reportedBy: 'Citizen Report',
-          status: 'verified',
-          source: 'citizen',
-          verificationStatus: report?.verificationStatus || 'verified'
-        })),
+        ?.map(report => {
+          const submitterName = report?.reportedBy || report?.reporterName || report?.reporter?.name || 'User Report';
+          const submitterRole = report?.reportedByRole || report?.reporterRole || report?.source || 'citizen';
+          const latVal = report?.location?.coordinates?.latitude ?? 
+                         report?.location?.coordinates?.lat ?? 
+                         report?.location?.lat ?? 
+                         report?.location?.latitude ?? 
+                         report?.lat;
+          const lngVal = report?.location?.coordinates?.longitude ?? 
+                         report?.location?.coordinates?.lng ?? 
+                         report?.location?.lng ?? 
+                         report?.location?.longitude ?? 
+                         report?.lng;
+          const locStr = report?.location?.address?.address || 
+                         report?.location?.address || 
+                         report?.location?.name || 
+                         (typeof report?.location === 'string' ? report.location : 'Reported Location');
 
-      // Official hazards (hotspots) - always include as they're pre-verified
+          return {
+            id: report?.id,
+            type: report?.hazardType || report?.type || 'general',
+            hazardType: report?.hazardType || report?.type || 'general',
+            severity: report?.severity || 'medium',
+            lat: latVal,
+            lng: lngVal,
+            location: locStr,
+            timestamp: new Date(report.timestamp || report.submittedAt || Date.now()),
+            description: report?.description || '',
+            reportedBy: submitterName,
+            reportedByRole: submitterRole,
+            source: submitterRole,
+            status: report?.status || 'pending_verification',
+            verificationStatus: report?.verificationStatus || report?.status || 'pending'
+          };
+        }),
+
+      // Official hazards (hotspots) - always include
       ...officialHazards?.map(hazard => ({
         ...hazard,
-        lat: hazard?.lat || hazard?.coordinates?.lat,
-        lng: hazard?.lng || hazard?.coordinates?.lng,
-        source: 'official',
-        status: 'verified',
-        verificationStatus: 'verified',
-        timestamp: hazard?.timestamp instanceof Date ? hazard?.timestamp : new Date(hazard.timestamp)
+        type: hazard?.hazardType || hazard?.type || 'general',
+        hazardType: hazard?.hazardType || hazard?.type || 'general',
+        lat: hazard?.lat ?? hazard?.coordinates?.lat ?? hazard?.coordinates?.latitude,
+        lng: hazard?.lng ?? hazard?.coordinates?.lng ?? hazard?.coordinates?.longitude,
+        reportedBy: hazard?.reportedBy || 'Official Authority',
+        reportedByRole: hazard?.reportedByRole || 'official',
+        source: hazard?.source || 'official',
+        status: hazard?.status || 'verified',
+        verificationStatus: hazard?.verificationStatus || 'verified',
+        timestamp: hazard?.timestamp instanceof Date ? hazard?.timestamp : new Date(hazard?.timestamp || Date.now())
       }))
     ];
 
-    const validHazards = combinedHazards.filter(hazard => 
+    // Deduplicate by ID
+    const uniqueHazards = combinedHazards.reduce((acc, curr) => {
+      if (!acc.find(h => h.id === curr.id)) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []);
+
+    const validHazards = uniqueHazards.filter(hazard => 
       hazard.lat != null && hazard.lng != null && 
       !isNaN(hazard.lat) && !isNaN(hazard.lng)
     );

@@ -5,17 +5,8 @@ import Icon from '../../../components/Appicon';
 const HazardTypeSelector = ({ selectedType, onTypeSelect, className = '' }) => {
   const hazardTypes = [
     {
-      id: 'tsunami',
-      name: 'Tsunami',
-      icon: 'Waves',
-      description: 'Large ocean waves caused by underwater disturbances',
-      color: 'bg-red-500',
-      borderColor: 'border-red-200',
-      textColor: 'text-red-700'
-    },
-    {
-      id: 'flooding',
-      name: 'Coastal Flooding',
+      id: 'flood',
+      name: 'Flood',
       icon: 'CloudRain',
       description: 'Water overflow from ocean onto normally dry coastal land',
       color: 'bg-blue-500',
@@ -32,6 +23,15 @@ const HazardTypeSelector = ({ selectedType, onTypeSelect, className = '' }) => {
       textColor: 'text-cyan-700'
     },
     {
+      id: 'tsunami',
+      name: 'Tsunami',
+      icon: 'Waves',
+      description: 'Large ocean waves caused by underwater disturbances',
+      color: 'bg-red-500',
+      borderColor: 'border-red-200',
+      textColor: 'text-red-700'
+    },
+    {
       id: 'storm-surge',
       name: 'Storm Surge',
       icon: 'Zap',
@@ -39,6 +39,24 @@ const HazardTypeSelector = ({ selectedType, onTypeSelect, className = '' }) => {
       color: 'bg-purple-500',
       borderColor: 'border-purple-200',
       textColor: 'text-purple-700'
+    },
+    {
+      id: 'coastal-erosion',
+      name: 'Coastal Erosion',
+      icon: 'Landmark',
+      description: 'Shoreline loss, damaged dunes, or unstable coastal edges',
+      color: 'bg-amber-500',
+      borderColor: 'border-amber-200',
+      textColor: 'text-amber-700'
+    },
+    {
+      id: 'other',
+      name: 'Other',
+      icon: 'AlertCircle',
+      description: 'Any other urgent coastal hazard or unsafe condition',
+      color: 'bg-slate-500',
+      borderColor: 'border-slate-200',
+      textColor: 'text-slate-700'
     }
   ];
 

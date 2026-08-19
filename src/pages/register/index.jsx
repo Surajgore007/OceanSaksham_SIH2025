@@ -13,8 +13,7 @@ const Register = () => {
   // Mock credentials for different roles
   const mockCredentials = {
     citizen: { email: 'citizen@example.com', password: 'Citizen123!' },
-    official: { email: 'official@incois.gov.in', password: 'Official123!' },
-    analyst: { email: 'analyst@imd.gov.in', password: 'Analyst123!' }
+    official: { email: 'official@incois.gov.in', password: 'Official123!' }
   };
 
   const handleRegistration = async (formData) => {
@@ -116,7 +115,6 @@ const Register = () => {
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p><strong>Citizen:</strong> citizen@example.com / Citizen123!</p>
                   <p><strong>Official:</strong> official@incois.gov.in / Official123!</p>
-                  <p><strong>Analyst:</strong> analyst@imd.gov.in / Analyst123!</p>
                 </div>
               </div>
             </div>

@@ -25,11 +25,6 @@ const LoginForm = ({ onLogin, isLoading, error }) => {
       value: 'official', 
       label: 'Government Official',
       description: 'Verify reports and manage alerts'
-    },
-    { 
-      value: 'analyst', 
-      label: 'Data Analyst',
-      description: 'Analyze hazard patterns and trends'
     }
   ];
 
@@ -201,12 +196,6 @@ const LoginForm = ({ onLogin, isLoading, error }) => {
                 <div className="text-gray-600">Email: official@oceansaksham.gov.in</div>
                 <div className="text-gray-600">Phone: 9876543211</div>
                 <div className="text-gray-600">Password: official123</div>
-              </div>
-              <div className="bg-white rounded p-2 border border-blue-100">
-                <div className="font-medium text-blue-700 mb-1">Analyst Account:</div>
-                <div className="text-gray-600">Email: analyst@oceansaksham.gov.in</div>
-                <div className="text-gray-600">Phone: 9876543212</div>
-                <div className="text-gray-600">Password: analyst123</div>
               </div>
             </div>
           </div>

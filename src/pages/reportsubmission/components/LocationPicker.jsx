@@ -3,6 +3,7 @@ import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import locationService from '../../../utils/locationService'; // Import the centralized service
+import localDb from '../../../utils/localDb';
 
 const LocationPicker = ({ 
   selectedLocation, 
@@ -215,9 +216,8 @@ const LocationPicker = ({
       submittedAt: locationData.timestamp
     };
 
-    // Store in localStorage for immediate use
-    const existingHotspots = JSON.parse(localStorage.getItem('userReports') || '[]');
-    existingHotspots.push({
+    // Store in canonical collections
+    localDb.insert('userReports', {
       ...reportData,
       id: hotspot.id,
       location: {
@@ -235,15 +235,11 @@ const LocationPicker = ({
         longitude: locationData.longitude
       },
       submittedAt: locationData.timestamp,
-      status: 'verified' // Auto-verify for demo purposes
+      status: 'pending_verification',
+      verificationStatus: 'pending'
     });
-    
-    localStorage.setItem('userReports', JSON.stringify(existingHotspots));
 
-    // Also add to hazardReports for immediate visibility
-    const hazardReports = JSON.parse(localStorage.getItem('hazardReports') || '[]');
-    hazardReports.push(hotspot);
-    localStorage.setItem('hazardReports', JSON.stringify(hazardReports));
+    localDb.insert('hazardReports', hotspot);
 
     console.log('Created hotspot from citizen report:', hotspot);
   };
@@ -355,7 +351,7 @@ const LocationPicker = ({
                   iconPosition="left"
                   className="mx-auto"
                 >
-                  Get High-Accuracy Location
+                  Use My Location
                 </Button>
                 <p className="text-xs text-muted-foreground mt-2">
                   For best accuracy, ensure you're outdoors with clear sky view
@@ -379,7 +375,7 @@ const LocationPicker = ({
                   <Icon name="CheckCircle" size={20} className="text-success mt-0.5" />
                   <div className="flex-1">
                     <p className="font-medium text-success mb-1">
-                      {currentLocation.isFallback ? 'Fallback Location Used & Hotspot Created' : 'Location Found & Hotspot Created'}
+                      {currentLocation.isFallback ? 'Fallback Location Used' : 'Location Found'}
                     </p>
                     <p className="text-sm text-muted-foreground mb-2">
                       {currentLocation?.address}
@@ -540,7 +536,7 @@ const LocationPicker = ({
               className="w-full"
               disabled={!manualCoords?.latitude || !manualCoords?.longitude}
             >
-              Set Location & Create Hotspot
+              Set Location
             </Button>
           </div>
 

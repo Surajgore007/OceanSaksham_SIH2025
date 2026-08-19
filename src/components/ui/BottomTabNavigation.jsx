@@ -18,21 +18,21 @@ const BottomTabNavigation = ({ user = null, className = '' }) => {
       label: 'Dashboard',
       path: '/main-dashboard',
       icon: 'BarChart3',
-      roles: ['citizen', 'official', 'analyst']
+      roles: ['citizen']
     },
     {
       id: 'report',
       label: 'Report',
       path: '/report-submission',
       icon: 'AlertTriangle',
-      roles: ['citizen', 'official', 'analyst']
+      roles: ['citizen', 'official']
     },
     {
       id: 'console',
       label: 'Console',
       path: '/official-console',
       icon: 'Shield',
-      roles: ['official', 'analyst']
+      roles: ['official']
     },
     {
       id: 'alerts',

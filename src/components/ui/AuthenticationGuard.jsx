@@ -1,6 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import authService from '../../utils/authService';
 
+/**
+ * AuthenticationGuard
+ *
+ * Core invariant: IDENTITY, ROLE, and ROUTE are independent.
+ * This guard NEVER silently converts a user's role.
+ * If a user lacks access it redirects them — it does NOT change who they are.
+ *
+ * The `user` prop may be null during the brief React render window before
+ * a parent's useEffect loads auth state. We fall back to authService to
+ * avoid false redirects during initialization.
+ */
 const AuthenticationGuard = ({ 
   children, 
   user = null, 
@@ -12,8 +24,12 @@ const AuthenticationGuard = ({
   const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
 
-  const isAuthenticated = !!user;
-  const userRole = user?.role?.toLowerCase() || '';
+  // Resolve the effective user: prefer prop (already in state), fall back to
+  // authService so we don't redirect during the parent's initialization window.
+  const effectiveUser = user || authService.getCurrentUser();
+
+  const isAuthenticated = !!effectiveUser;
+  const userRole = effectiveUser?.role?.toLowerCase() || '';
   const hasRequiredRole = requiredRoles?.length === 0 || requiredRoles?.includes(userRole);
 
   // Public routes that don't require authentication
@@ -33,53 +49,56 @@ const AuthenticationGuard = ({
 
   useEffect(() => {
     const checkAuthentication = () => {
-      // Allow access to public routes
+      // Always allow public routes — no redirect, no spinner
       if (isPublicRoute) {
         setIsChecking(false);
         return;
       }
 
-      // Redirect unauthenticated users from protected routes
+      // Redirect unauthenticated users from protected routes to login
       if (isProtectedRoute && !isAuthenticated) {
         navigate(fallbackPath, { 
           replace: true,
           state: { from: location?.pathname }
         });
+        // Must still clear checking state so component doesn't freeze if
+        // the navigation is cancelled or the user presses Back
+        setIsChecking(false);
         return;
       }
 
-      // Check role-based access
+      // Check role-based access — redirect to the user's OWN dashboard.
+      // NEVER change the user's role or identity.
       if (isAuthenticated && requiredRoles?.length > 0 && !hasRequiredRole) {
-        // Redirect to appropriate dashboard based on user role
         const roleBasedRedirect = {
-          'citizen': '/main-dashboard',
-          'official': '/official-console',
-          'analyst': '/main-dashboard'
+          citizen: '/main-dashboard',
+          official: '/official-console',
         };
-        
         const redirectPath = roleBasedRedirect?.[userRole] || '/main-dashboard';
         navigate(redirectPath, { replace: true });
+        setIsChecking(false);
         return;
       }
 
-      // Redirect authenticated users away from auth pages
+      // Redirect already-authenticated users away from auth pages
       if (isAuthenticated && ['/login', '/register']?.includes(location?.pathname)) {
         const roleBasedRedirect = {
-          'citizen': '/main-dashboard',
-          'official': '/official-console', 
-          'analyst': '/main-dashboard'
+          citizen: '/main-dashboard',
+          official: '/official-console',
         };
-        
         const redirectPath = roleBasedRedirect?.[userRole] || '/main-dashboard';
         navigate(redirectPath, { replace: true });
+        setIsChecking(false);
         return;
       }
 
+      // All checks passed — allow rendering
       setIsChecking(false);
     };
 
-    // Small delay to prevent flash of content
-    const timer = setTimeout(checkAuthentication, 100);
+    // Small delay to allow parent useEffect to set auth state before we check.
+    // This prevents false redirects during the React initialization window.
+    const timer = setTimeout(checkAuthentication, 150);
     return () => clearTimeout(timer);
   }, [
     isAuthenticated, 
@@ -139,9 +158,9 @@ export const usePermissions = (user) => {
   
   const canAccess = (route) => {
     const routePermissions = {
-      '/main-dashboard': ['citizen', 'official', 'analyst'],
-      '/report-submission': ['citizen', 'official', 'analyst'],
-      '/official-console': ['official', 'analyst'],
+      '/main-dashboard': ['citizen'],
+      '/report-submission': ['citizen', 'official'],
+      '/official-console': ['official'],
       '/console-alerts': ['official']
     };
     

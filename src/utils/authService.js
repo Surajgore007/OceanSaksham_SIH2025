@@ -35,7 +35,7 @@ class AuthService {
     try {
       const { emailOrPhone, password, role } = credentials;
       
-      // Mock credentials validation
+      // Mock credentials validation (Only Citizen and Official)
       const mockCredentials = {
         citizen: {
           email: 'citizen@oceansaksham.gov.in',
@@ -46,11 +46,6 @@ class AuthService {
           email: 'official@oceansaksham.gov.in',
           phone: '9876543211',
           password: 'official123'
-        },
-        analyst: {
-          email: 'analyst@oceansaksham.gov.in',
-          phone: '9876543212',
-          password: 'analyst123'
         }
       };
 
@@ -91,22 +86,18 @@ class AuthService {
       // Create user object with location data
       const user = {
         id: `user_${role}_${Date.now()}`,
-        name: role === 'citizen' ? 'Rajesh Kumar' : 
-              role === 'official' ? 'Dr. Priya Sharma' : 'Arun Patel',
+        name: role === 'citizen' ? 'Rajesh Kumar' : 'Dr. Priya Sharma',
         email: roleCredentials?.email,
         phone: roleCredentials?.phone,
         role: role,
         avatar: `https://randomuser.me/api/portraits/${role === 'official' ? 'women' : 'men'}/${Math.floor(Math.random() * 50) + 1}.jpg`,
         location: location || {
-          state: role === 'citizen' ? 'Tamil Nadu' : 
-                 role === 'official' ? 'Kerala' : 'Gujarat',
-          district: role === 'citizen' ? 'Chennai' : 
-                   role === 'official' ? 'Kochi' : 'Ahmedabad'
+          state: role === 'citizen' ? 'Tamil Nadu' : 'Kerala',
+          district: role === 'citizen' ? 'Chennai' : 'Kochi'
         },
         coordinates: location?.coordinates || null,
         permissions: role === 'citizen' ? ['report_hazard', 'view_alerts'] :
-                    role === 'official' ? ['verify_reports', 'manage_alerts', 'create_hotspots'] :
-                    ['view_analytics', 'export_data', 'verify_reports'],
+                    ['verify_reports', 'manage_alerts', 'create_hotspots'],
         loginTime: new Date()?.toISOString(),
         isActive: true,
         hasLocationAccess: !!location
@@ -174,19 +165,19 @@ class AuthService {
   }
 
   /**
-   * Enhanced logout with cleanup
+   * Enhanced logout with session cleanup
+   * Preserves shared hazard and report database so reports are accessible across logins/roles
    */
   async logout() {
     try {
-      // Clear all authentication data
+      // Clear user session authentication data
       localStorage.removeItem('oceanSaksham_user');
       localStorage.removeItem('oceanSaksham_token');
       localStorage.removeItem('oceanSaksham_loginTime');
       
-      // Clear any cached data
+      // Clear transient user draft data only
       localStorage.removeItem('reportSubmission_draft');
-      localStorage.removeItem('userReports');
-      localStorage.removeItem('hazardReports');
+      localStorage.removeItem('quickReportData');
       
       // Clear session storage
       sessionStorage.clear();
@@ -218,6 +209,11 @@ class AuthService {
       
       if (savedUser && savedToken) {
         const user = JSON.parse(savedUser);
+        const allowedRoles = ['citizen', 'official'];
+        if (!allowedRoles.includes(user?.role?.toLowerCase())) {
+          this.logout();
+          return null;
+        }
         
         // Check if session is still valid (24 hours)
         const loginTime = new Date(user.loginTime);
