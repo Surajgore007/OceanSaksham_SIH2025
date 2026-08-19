@@ -1,16 +1,40 @@
 /**
  * Pure Node.js Built-in HTTP Server for Twilio WhatsApp Webhook
- * ZERO EXTERNAL DEPENDENCIES (No 'express' or 'body-parser' needed!)
- * Run anytime with: node server/index.js
+ * ZERO EXTERNAL DEPENDENCIES
+ * Exposes Webhook + REST API to sync WhatsApp reports directly with Official Console & Map!
  */
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const querystring = require('querystring');
 
 const PORT = process.env.PORT || 5000;
+const PUBLIC_FILE = path.join(__dirname, '..', 'public', 'whatsapp_reports.json');
 
 // In-memory conversation state
 const userSessions = new Map();
+
+// In-memory received reports list
+let receivedReports = [];
+
+// Load existing reports from public file if exists
+try {
+  if (fs.existsSync(PUBLIC_FILE)) {
+    const raw = fs.readFileSync(PUBLIC_FILE, 'utf8');
+    receivedReports = JSON.parse(raw) || [];
+  }
+} catch (e) {
+  receivedReports = [];
+}
+
+function saveReportsToFile() {
+  try {
+    fs.writeFileSync(PUBLIC_FILE, JSON.stringify(receivedReports, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving whatsapp_reports.json:', err);
+  }
+}
 
 // Coastal Knowledge Base & Keywords
 const COASTAL_KB = [
@@ -32,6 +56,49 @@ const HAZARD_MAP = {
   '5': 'coastal_erosion',
   '6': 'emergency_sos'
 };
+
+function createReport(hazardType, locName, lat, lng, description, mediaUrl, from) {
+  const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
+  const nowIso = new Date().toISOString();
+  const phone = (from || '').replace('whatsapp:', '');
+
+  const report = {
+    id: `wa_${Date.now()}`,
+    hazardType: hazardType || 'high_waves',
+    type: hazardType || 'high_waves',
+    severity: hazardType === 'tsunami' ? 'critical' : (hazardType === 'storm_surge' ? 'high' : 'medium'),
+    description: description || `Reported via WhatsApp from ${phone}`,
+    location: {
+      name: locName,
+      address: locName,
+      coordinates: { lat, lng }
+    },
+    lat: lat,
+    lng: lng,
+    media: mediaUrl ? [{
+      id: `wa_img_${Date.now()}`,
+      url: mediaUrl,
+      preview: mediaUrl,
+      name: `whatsapp_${refId}.jpg`,
+      geotagged: true
+    }] : [],
+    mediaFiles: mediaUrl ? [{ url: mediaUrl, preview: mediaUrl }] : [],
+    source: 'whatsapp',
+    reportedBy: `WhatsApp (${phone})`,
+    reportedByRole: 'citizen',
+    reporterName: `WhatsApp User (${phone})`,
+    status: 'pending_verification',
+    verificationStatus: 'pending',
+    priority: hazardType === 'tsunami' ? 'high' : 'normal',
+    timestamp: nowIso,
+    submittedAt: nowIso
+  };
+
+  receivedReports.unshift(report);
+  saveReportsToFile();
+  console.log(`\n📢 [NEW WHATSAPP REPORT RECORDED]: Ref: ${refId} | Hazard: ${hazardType} | Location: ${locName}`);
+  return { report, refId };
+}
 
 function handleWebhook(payload) {
   const from = payload.From || 'whatsapp:+910000000000';
@@ -62,13 +129,16 @@ function handleWebhook(payload) {
       const lat = latitude || matchedLoc?.lat || 19.0760;
       const lng = longitude || matchedLoc?.lng || 72.8777;
       const locName = matchedLoc?.name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
+      const hazardType = ['tsunami', 'flood', 'storm_surge', 'erosion'].find(h => lowerBody.includes(h)) || 'high_waves';
 
+      const { refId } = createReport(hazardType, locName, lat, lng, body, mediaUrl, from);
       userSessions.delete(from);
+
       replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
                   `📋 *Reference ID:* \`${refId}\`\n` +
+                  `⚠️ *Hazard:* ${hazardType.replace('_', ' ').toUpperCase()}\n` +
                   `📍 *Location:* ${locName}\n` +
-                  `🌊 *Status:* Telemetry forwarded to INCOIS Coastal Monitoring.\n\n` +
+                  `🌊 *Status:* Received by Official Review Console & Live Map.\n\n` +
                   `📞 *Emergency Coast Guard:* 1078`;
     } else {
       session.step = 'SELECT_HAZARD';
@@ -105,7 +175,15 @@ function handleWebhook(payload) {
                 `Location: *${session.locName}*\n\n` +
                 `Please send a live photo of the hazard, or reply *SKIP* to submit without photo.`;
   } else if (session.step === 'PHOTO') {
-    const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
+    const { refId } = createReport(
+      session.hazardType || 'high_waves',
+      session.locName,
+      session.lat,
+      session.lng,
+      `Reported via WhatsApp: ${session.hazardType} at ${session.locName}`,
+      mediaUrl,
+      from
+    );
     userSessions.delete(from);
 
     replyText = `✅ *Hazard Report Dispatched to Authorities!*\n\n` +
@@ -113,7 +191,7 @@ function handleWebhook(payload) {
                 `⚠️ *Hazard:* ${(session.hazardType || 'Hazard').toUpperCase().replace('_', ' ')}\n` +
                 `📍 *Location:* ${session.locName}\n` +
                 `${mediaUrl ? '📸 *Evidence:* Photo Attached & Geotagged\n' : ''}\n` +
-                `Disaster response and coastal control teams have been alerted.\n\n` +
+                `Official Review Console and live rescue teams have been alerted.\n\n` +
                 `📞 *Emergency Coast Guard:* 1078`;
   }
 
@@ -124,12 +202,34 @@ function handleWebhook(payload) {
 }
 
 const server = http.createServer((req, res) => {
-  const url = req.url || '/';
+  // Enable CORS headers so frontend dashboard can fetch WhatsApp reports in real-time
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Support health check
-  if (req.method === 'GET') {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  const url = req.url.split('?')[0];
+
+  // REST API endpoint to retrieve reports
+  if (req.method === 'GET' && (url === '/api/reports' || url === '/api/whatsapp/reports' || url === '/reports')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'active', service: 'OceanSaksham Twilio WhatsApp Webhook' }));
+    res.end(JSON.stringify(receivedReports));
+    return;
+  }
+
+  // Health check
+  if (req.method === 'GET' && (url === '/' || url === '/health')) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'active', 
+      service: 'OceanSaksham Twilio WhatsApp Webhook',
+      totalWhatsAppReports: receivedReports.length 
+    }));
     return;
   }
 
@@ -152,7 +252,7 @@ const server = http.createServer((req, res) => {
         console.error('Error parsing body:', err);
       }
 
-      console.log(`[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}"`);
+      console.log(`\n[Twilio Inbound] From: ${payload.From || 'Unknown'} | Body: "${payload.Body || ''}" | Media: ${payload.NumMedia || 0}`);
 
       const twiml = handleWebhook(payload);
       res.writeHead(200, { 'Content-Type': 'text/xml' });
@@ -171,5 +271,6 @@ server.listen(PORT, () => {
   console.log(`📍 Webhook URLs:`);
   console.log(`   - http://localhost:${PORT}/api/twilio/incoming-sms`);
   console.log(`   - http://localhost:${PORT}/api/whatsapp`);
+  console.log(`📊 Reports Feed API: http://localhost:${PORT}/api/reports`);
   console.log(`\n👉 In another terminal run: ngrok http ${PORT}\n`);
 });

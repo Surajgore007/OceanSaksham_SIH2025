@@ -55,11 +55,72 @@ class RealTimeService {
       return;
     }
 
+    // Automatic WhatsApp live reports sync
+    this.syncWhatsAppReports();
+    this.whatsAppSyncInterval = setInterval(() => {
+      this.syncWhatsAppReports();
+    }, 5000);
+
     // Final fallback to mock simulation if no live config is present
     this.updateInterval = setInterval(() => {
       this.simulateRealTimeUpdates();
     }, 30000);
-    console.log('Real-time service started (mock simulation mode)');
+    console.log('Real-time service started (with live WhatsApp reports sync)');
+  }
+
+  /**
+   * Sync incoming WhatsApp reports from server into local database
+   */
+  async syncWhatsAppReports() {
+    try {
+      // Try local server endpoint first, then public static json file
+      const endpoints = [
+        'http://localhost:5000/api/reports',
+        '/whatsapp_reports.json',
+        '/api/reports'
+      ];
+
+      let newReports = null;
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep);
+          if (res.ok) {
+            newReports = await res.json();
+            if (Array.isArray(newReports) && newReports.length > 0) {
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      if (!Array.isArray(newReports) || newReports.length === 0) return;
+
+      const existingUserReports = localDb.getCollection('userReports') || [];
+      let addedAny = false;
+
+      newReports.forEach(incoming => {
+        if (!incoming?.id) return;
+        const exists = existingUserReports.some(r => r.id === incoming.id);
+        if (!exists) {
+          localDb.insert('userReports', incoming);
+          localDb.insert('pendingVerification', incoming);
+          localDb.insert('pendingReports', incoming);
+          addedAny = true;
+        }
+      });
+
+      if (addedAny) {
+        const updatedUserReports = localDb.getCollection('userReports');
+        const updatedPending = localDb.getCollection('pendingVerification');
+        this.notifyListeners('reports', updatedUserReports);
+        this.notifyListeners('userReports', updatedUserReports);
+        this.notifyListeners('pendingVerification', updatedPending);
+        this.notifyListeners('hazards', updatedUserReports);
+        console.log('✨ [OceanSaksham Live]: New WhatsApp report synced to Official Console & Map!');
+      }
+    } catch (e) {
+      // Silent catch
+    }
   }
 
   /**
@@ -69,6 +130,11 @@ class RealTimeService {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
+    }
+    
+    if (this.whatsAppSyncInterval) {
+      clearInterval(this.whatsAppSyncInterval);
+      this.whatsAppSyncInterval = null;
     }
     
     if (this.ws) {
