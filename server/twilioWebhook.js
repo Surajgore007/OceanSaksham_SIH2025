@@ -30,7 +30,14 @@ const HAZARD_MAP = {
 
 const userSessions = new Map();
 
-router.post('/webhook/whatsapp', (req, res) => {
+const routes = [
+  '/api/twilio/incoming-sms',
+  '/api/whatsapp',
+  '/webhook/whatsapp',
+  '/incoming-sms'
+];
+
+router.post(routes, (req, res) => {
   const from = req.body.From || 'whatsapp:+910000000000';
   const body = (req.body.Body || '').trim();
   const lowerBody = body.toLowerCase();
