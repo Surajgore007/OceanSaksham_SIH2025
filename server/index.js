@@ -98,6 +98,21 @@ const HAZARD_MAP = {
   '6': 'emergency_sos'
 };
 
+const WELCOME_MESSAGE = 
+`🌊 *Welcome to OceanSaksham Coastal Reporting*
+_National Ocean Information Services (INCOIS)_
+
+Please reply with the hazard number:
+
+1️⃣ 🌊 High Waves / Swell Surge
+2️⃣ 🌧️ Coastal Flooding
+3️⃣ 🌀 Storm Surge
+4️⃣ 🚨 Tsunami Warning
+5️⃣ 🏖️ Beach Erosion
+6️⃣ 🆘 Emergency Distress (SOS)
+
+_Or describe what you see in your own words._`;
+
 function recordReport(hazardType, locName, lat, lng, description, from, mediaUrl) {
   const refId = `INCOIS-WA-${Date.now().toString().slice(-6)}`;
   const nowIso = new Date().toISOString();
@@ -151,15 +166,21 @@ function handleWebhook(payload) {
   let session = userSessions.get(from) || { step: 'IDLE' };
   let replyText = '';
 
+  // 1. Reset / Help
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === 'cancel') {
     userSessions.delete(from);
-    replyText = `🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or describe the hazard to begin.`;
+    replyText = `🔄 *Session Reset*\n\nWelcome to *OceanSaksham Coastal Hazard Reporting*.\nSend *REPORT* or *HI* to begin.`;
   } else if (lowerBody === 'help' || lowerBody === 'info') {
     replyText = `🌊 *OceanSaksham WhatsApp Reporting Guide*\n\n` +
                 `1️⃣ *Fast Text:* Send _"High waves and flooding at Juhu beach"_\n` +
                 `2️⃣ *Interactive Menu:* Reply *REPORT*\n` +
                 `3️⃣ *GPS & Photo:* Send a photo + tap 📎 > *Location* > *Send Current Location*.\n\n` +
                 `📞 *Coast Guard Helpline:* 1078`;
+  } else if (/^(hi+|hello+|hey+|start|report|menu)$/i.test(lowerBody)) {
+    // Any greeting always shows Welcome Menu
+    session = { step: 'SELECT_HAZARD' };
+    userSessions.set(from, session);
+    replyText = WELCOME_MESSAGE;
   } else if (session.step === 'IDLE') {
     const matchedLoc = COASTAL_KB.find(l => l.keywords.some(k => lowerBody.includes(k)));
     const hasHazardKeyword = ['wave', 'flood', 'surge', 'tsunami', 'erosion', 'sos', 'water', 'cyclone'].some(k => lowerBody.includes(k));
@@ -181,19 +202,19 @@ function handleWebhook(payload) {
     } else {
       session.step = 'SELECT_HAZARD';
       userSessions.set(from, session);
-      replyText = `🌊 *Welcome to OceanSaksham Coastal Reporting*\n` +
-                  `_National Ocean Information Services (INCOIS)_\n\n` +
-                  `Please reply with the hazard number:\n\n` +
-                  `1️⃣ 🌊 High Waves / Swell Surge\n` +
-                  `2️⃣ 🌧️ Coastal Flooding\n` +
-                  `3️⃣ 🌀 Storm Surge\n` +
-                  `4️⃣ 🚨 Tsunami Warning\n` +
-                  `5️⃣ 🏖️ Beach Erosion\n` +
-                  `6️⃣ 🆘 Emergency Distress (SOS)\n\n` +
-                  `_Or describe what you see in your own words._`;
+      replyText = WELCOME_MESSAGE;
     }
   } else if (session.step === 'SELECT_HAZARD') {
-    const hazardType = HAZARD_MAP[body] || 'high_waves';
+    let hazardType = HAZARD_MAP[body];
+    if (!hazardType) {
+      if (lowerBody.includes('wave')) hazardType = 'high_waves';
+      else if (lowerBody.includes('flood')) hazardType = 'flooding';
+      else if (lowerBody.includes('surge')) hazardType = 'storm_surge';
+      else if (lowerBody.includes('tsunami')) hazardType = 'tsunami';
+      else if (lowerBody.includes('erosion')) hazardType = 'coastal_erosion';
+      else if (lowerBody.includes('sos')) hazardType = 'emergency_sos';
+      else hazardType = 'high_waves';
+    }
     session.hazardType = hazardType;
     session.step = 'LOCATION';
     userSessions.set(from, session);
@@ -252,15 +273,23 @@ const server = http.createServer((req, res) => {
 
   // REST API for Official Console
   if (req.method === 'GET' && (url === '/api/reports' || url === '/reports')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(receivedReports));
+    const jsonBuf = Buffer.from(JSON.stringify(receivedReports), 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': jsonBuf.length
+    });
+    res.end(jsonBuf);
     return;
   }
 
   // Health check
   if (req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'active', service: 'OceanSaksham Twilio WhatsApp Webhook' }));
+    const healthBuf = Buffer.from(JSON.stringify({ status: 'active', service: 'OceanSaksham Twilio WhatsApp Webhook' }), 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': healthBuf.length
+    });
+    res.end(healthBuf);
     return;
   }
 
@@ -287,8 +316,13 @@ const server = http.createServer((req, res) => {
 
       const twiml = handleWebhook(payload);
       console.log('[TwiML Sent]:\n', twiml);
-      res.writeHead(200, { 'Content-Type': 'text/xml' });
-      res.end(twiml);
+
+      const xmlBuf = Buffer.from(twiml, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'Content-Length': xmlBuf.length
+      });
+      res.end(xmlBuf);
     });
     return;
   }
