@@ -115,10 +115,26 @@ const ReportSubmission = () => {
     }
   }, [searchParams]);
 
-  // Auto-save to localStorage (but not for quick reports)
+  // Auto-save to localStorage (safe from quota limits)
   useEffect(() => {
     if (!isQuickReport) {
-      localStorage.setItem('reportSubmission_draft', JSON.stringify(formData));
+      try {
+        const draftSafe = {
+          ...formData,
+          // Strip heavy image Data URLs from localStorage draft to prevent QuotaExceededError
+          mediaFiles: (formData.mediaFiles || []).map(m => ({
+            id: m.id,
+            name: m.name,
+            size: m.size,
+            type: m.type,
+            geotagged: m.geotagged,
+            uploadedAt: m.uploadedAt
+          }))
+        };
+        localStorage.setItem('reportSubmission_draft', JSON.stringify(draftSafe));
+      } catch (err) {
+        console.warn('Could not auto-save draft to localStorage (quota full):', err);
+      }
     }
   }, [formData, isQuickReport]);
 

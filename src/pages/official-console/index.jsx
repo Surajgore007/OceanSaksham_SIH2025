@@ -138,14 +138,17 @@ const OfficialConsole = () => {
   };
 
   const loadAllReportsForVerification = () => {
+    const deletedList = localDb.getCollection('deletedHazards') || [];
+    const deletedIds = new Set(deletedList.map(d => d?.id));
+
     // Load from localStorage (regular web reports)
     const localUserReports = localDb.getCollection('userReports') || [];
     // Merge with in-memory WhatsApp reports (stored here to avoid localStorage 5MB quota)
     const waReports = window.__waReports ? Object.values(window.__waReports) : [];
-    // Merge: waReports first so they appear at top, then local reports, deduped by id
+    // Merge: waReports first so they appear at top, then local reports, deduped by id & excluding deleted
     const seenIds = new Set();
     const userReports = [...waReports, ...localUserReports].filter(r => {
-      if (!r?.id || seenIds.has(r.id)) return false;
+      if (!r?.id || seenIds.has(r.id) || deletedIds.has(r.id)) return false;
       seenIds.add(r.id);
       return true;
     });
@@ -289,8 +292,8 @@ const OfficialConsole = () => {
       };
     });
 
-    // Combine normalized reports and demo reports
-    const allReports = [...normalizedUserReports, ...demoReports];
+    // Combine normalized reports and demo reports (excluding deleted)
+    const allReports = [...normalizedUserReports, ...demoReports].filter(r => !deletedIds.has(r.id));
 
     // Remove duplicates based on ID
     const uniqueReports = allReports.reduce((acc, report) => {
@@ -594,6 +597,61 @@ const OfficialConsole = () => {
 
     } catch (error) {
       console.error('Error marking reports under review:', error);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportIds) => {
+    const idsArray = Array.isArray(reportIds) ? reportIds : [reportIds];
+    if (idsArray.length === 0) return;
+
+    const confirmed = window.confirm(
+      idsArray.length === 1
+        ? 'Are you sure you want to permanently delete this hazard report?'
+        : `Are you sure you want to permanently delete ${idsArray.length} selected hazard reports?`
+    );
+    if (!confirmed) return;
+
+    setBulkActionLoading(true);
+
+    try {
+      for (const reportId of idsArray) {
+        // Remove from all local collections
+        localDb.deleteItem('userReports', reportId);
+        localDb.deleteItem('hazardReports', reportId);
+        localDb.deleteItem('pendingVerification', reportId);
+        localDb.deleteItem('pendingReports', reportId);
+
+        // Record in deletedHazards so demo/static reports and map markers are permanently excluded
+        localDb.insert('deletedHazards', { id: reportId, deletedAt: new Date().toISOString() });
+
+        // Remove from in-memory WhatsApp live reports cache
+        if (window.__waReports && window.__waReports[reportId]) {
+          delete window.__waReports[reportId];
+        }
+      }
+
+      // Update UI state immediately
+      setReports(prev => prev.filter(r => !idsArray.includes(r.id)));
+      setFilteredReports(prev => prev.filter(r => !idsArray.includes(r.id)));
+      setSelectedReports(prev => prev.filter(id => !idsArray.includes(id)));
+
+      if (selectedReport && idsArray.includes(selectedReport.id)) {
+        setIsDetailModalOpen(false);
+        setSelectedReport(null);
+      }
+
+      // Notify all real-time listeners across all channels (Map, Feeds, etc.)
+      realTimeService.notifyListeners('userReports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('reports', localDb.getCollection('userReports'));
+      realTimeService.notifyListeners('hazards', localDb.getCollection('hazardReports'));
+      realTimeService.notifyListeners('pendingVerification', localDb.getCollection('pendingVerification'));
+
+      // Recalculate metrics
+      loadData(false);
+    } catch (error) {
+      console.error('Error deleting report(s):', error);
     } finally {
       setBulkActionLoading(false);
     }
@@ -1003,6 +1061,16 @@ const OfficialConsole = () => {
                     >
                       Mark Under Review
                     </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      iconName="Trash2"
+                      onClick={() => handleDeleteReport(selectedReports)}
+                      loading={bulkActionLoading}
+                      className="bg-error/10 hover:bg-error hover:text-white text-error border border-error/20"
+                    >
+                      Delete Selected
+                    </Button>
                   </div>
                 )}
               </div>
@@ -1127,6 +1195,16 @@ const OfficialConsole = () => {
                                 />
                               </>
                             )}
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              iconName="Trash2"
+                              onClick={() => handleDeleteReport(report.id)}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-error hover:bg-error/10"
+                              title="Delete Hazard"
+                              aria-label="Delete hazard"
+                            />
                           </div>
                         </td>
                       </tr>
@@ -1281,6 +1359,7 @@ const OfficialConsole = () => {
                       onVerify={handleVerifyReport}
                       onReject={handleRejectReport}
                       onMarkUnderReview={handleMarkUnderReview}
+                      onDelete={handleDeleteReport}
                       onClose={() => setIsDetailModalOpen(false)}
                     />
                   </div>
@@ -1460,6 +1539,19 @@ const VerificationPanel = ({
             )}
           </div>
         )}
+
+        {/* Delete Report Option for Officials */}
+        <div className="mt-4 pt-3 border-t border-border">
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full bg-error/10 hover:bg-error hover:text-white text-error border border-error/20"
+            iconName="Trash2"
+            onClick={() => onDelete?.(report.id)}
+          >
+            Delete Hazard Report Permanently
+          </Button>
+        </div>
       </div>
 
       {/* Timeline */}
