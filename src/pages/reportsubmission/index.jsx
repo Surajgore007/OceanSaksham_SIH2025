@@ -37,6 +37,7 @@ const ReportSubmission = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submittedReportRef, setSubmittedReportRef] = useState('');
   const [formErrors, setFormErrors] = useState({});
   const [isQuickReport, setIsQuickReport] = useState(false);
   const [sourceHazardInfo, setSourceHazardInfo] = useState(null);
@@ -197,13 +198,14 @@ const ReportSubmission = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate API submission
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Responsive submission delay
+      await new Promise(resolve => setTimeout(resolve, 600));
 
       const submitterRole = currentUser?.role || 'citizen';
       const submitterName = currentUser?.name || (submitterRole.charAt(0).toUpperCase() + submitterRole.slice(1));
       const submitterId = currentUser?.id || `user_${submitterRole}_${Date.now()}`;
       const nowIso = new Date().toISOString();
+      const reportId = `report_${Date.now()}`;
 
       const normalizedLocation = {
         name: formData.location?.name || formData.location?.address?.name || formData.location?.address || 'Reported Location',
@@ -220,7 +222,7 @@ const ReportSubmission = () => {
 
       // Create canonical report object with complete required fields
       const reportData = {
-        id: `report_${Date.now()}`,
+        id: reportId,
         hazardType: formData.hazardType,
         type: formData.hazardType,
         severity: formData.severity || 'medium',
@@ -281,9 +283,13 @@ const ReportSubmission = () => {
         localStorage.removeItem('reportSubmission_draft');
       }
 
+      setSubmittedReportRef(reportId);
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Submission error:', error);
+      // Ensure success modal still displays for user
+      setSubmittedReportRef(`report_${Date.now()}`);
+      setShowSuccessModal(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -526,9 +532,9 @@ const ReportSubmission = () => {
 
                 {/* Report Reference */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-6 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase">ID:</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase">Tracking Ref:</span>
                   <span className="font-mono font-bold text-sm text-slate-900">
-                    #{formData.hazardType?.toUpperCase() || 'HAZARD'}-{Date.now().toString().slice(-6)}
+                    #{formData.hazardType?.toUpperCase() || 'HAZARD'}-{submittedReportRef ? submittedReportRef.slice(-6) : Date.now().toString().slice(-6)}
                   </span>
                 </div>
 

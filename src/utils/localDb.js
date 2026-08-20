@@ -26,19 +26,42 @@ export function getCollection(collectionName) {
       }
     }
     
+    const memRecords = inMemoryStore.get(collectionName);
+    if (memRecords && Array.isArray(memRecords) && memRecords.length > 0) {
+      return memRecords;
+    }
+
     return [];
   } catch (e) {
     console.error(`Error reading collection ${collectionName}:`, e);
-    return [];
+    return inMemoryStore.get(collectionName) || [];
   }
 }
 
+const inMemoryStore = new Map();
+
 export function setCollection(collectionName, records) {
   const safeRecords = Array.isArray(records) ? records : [];
-  const json = JSON.stringify(safeRecords);
-  localStorage.setItem(getKey(collectionName), json);
-  // Mirror to unprefixed key for full backward compatibility
-  localStorage.setItem(collectionName, json);
+  inMemoryStore.set(collectionName, safeRecords);
+  inMemoryStore.set(getKey(collectionName), safeRecords);
+
+  try {
+    const json = JSON.stringify(safeRecords);
+    localStorage.setItem(getKey(collectionName), json);
+    localStorage.setItem(collectionName, json);
+  } catch (e) {
+    console.warn(`localStorage quota exceeded for ${collectionName}, storing in memory:`, e);
+    // If quota exceeded, attempt to prune old entries in localStorage if possible
+    try {
+      // Save last 20 records only to save space
+      const trimmed = safeRecords.slice(-20);
+      const json = JSON.stringify(trimmed);
+      localStorage.setItem(getKey(collectionName), json);
+      localStorage.setItem(collectionName, json);
+    } catch (innerError) {
+      // Memory store is already populated
+    }
+  }
 }
 
 export function insert(collectionName, record) {
