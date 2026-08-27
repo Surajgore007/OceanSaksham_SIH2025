@@ -100,6 +100,41 @@ const MediaUpload = ({
     });
   };
 
+    const compressImageFile = (file, maxWidth = 1280, maxHeight = 1280, quality = 0.75) => {
+    return new Promise((resolve) => {
+      if (!file?.type?.startsWith('image/')) {
+        return readFileAsDataUrl(file).then(resolve);
+      }
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width || 640;
+          canvas.height = height || 480;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        };
+        img.onerror = () => resolve(e.target?.result || null);
+        img.src = e.target?.result;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const processGeotaggedFile = async (file, location = null) => {
     const currentLocation = location || await getCurrentLocation();
     
@@ -115,17 +150,19 @@ const MediaUpload = ({
       }
     }
 
-    // Convert file to persistent Data URL for storage & cross-user display
+    // Convert and compress image file to lightweight Data URL (< 150KB)
     let dataUrl = null;
     if (file?.type?.startsWith('image/')) {
+      dataUrl = await compressImageFile(file);
+    } else {
       dataUrl = await readFileAsDataUrl(file);
     }
 
     return {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: file.name,
-      size: file.size,
-      type: file.type,
+      size: dataUrl ? Math.round(dataUrl.length * 0.75) : file.size,
+      type: file.type?.startsWith('image/') ? 'image/jpeg' : file.type,
       url: dataUrl,
       preview: dataUrl,
       uploadedAt: new Date().toISOString(),
@@ -224,11 +261,26 @@ const MediaUpload = ({
       const canvas = canvasRef.current || document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Downscale to max 1280px for high performance & safe storage
+      const maxDim = 1280;
+      let targetWidth = video.videoWidth || 640;
+      let targetHeight = video.videoHeight || 480;
+      if (targetWidth > maxDim || targetHeight > maxDim) {
+        if (targetWidth > targetHeight) {
+          targetHeight = Math.round((targetHeight * maxDim) / targetWidth);
+          targetWidth = maxDim;
+        } else {
+          targetWidth = Math.round((targetWidth * maxDim) / targetHeight);
+          targetHeight = maxDim;
+        }
+      }
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+      // Compress JPEG at 0.75 quality (~80-120KB)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
       
       if (uploadedFiles?.length < maxFiles) {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

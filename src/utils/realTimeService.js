@@ -55,11 +55,63 @@ class RealTimeService {
       return;
     }
 
+    // Automatic WhatsApp live reports sync
+    this.syncWhatsAppReports();
+    this.whatsAppSyncInterval = setInterval(() => {
+      this.syncWhatsAppReports();
+    }, 5000);
+
     // Final fallback to mock simulation if no live config is present
     this.updateInterval = setInterval(() => {
       this.simulateRealTimeUpdates();
     }, 30000);
-    console.log('Real-time service started (mock simulation mode)');
+    console.log('Real-time service started (with live WhatsApp reports sync)');
+  }
+
+  /**
+   * Sync incoming WhatsApp reports from server into local database
+   */
+  async syncWhatsAppReports() {
+    try {
+      const endpoints = [
+        'http://localhost:5000/api/reports',
+        '/whatsapp_reports.json'
+      ];
+
+      let newReports = null;
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, { cache: 'no-store' });
+          if (res.ok) {
+            newReports = await res.json();
+            if (Array.isArray(newReports) && newReports.length > 0) break;
+          }
+        } catch {}
+      }
+
+      if (!Array.isArray(newReports) || newReports.length === 0) return;
+
+      // Use in-memory store (window.__waReports) to avoid localStorage 5MB quota
+      if (!window.__waReports) window.__waReports = {};
+      const prevCount = Object.keys(window.__waReports).length;
+
+      newReports.forEach(incoming => {
+        if (incoming?.id) window.__waReports[incoming.id] = incoming;
+      });
+
+      const newCount = Object.keys(window.__waReports).length;
+      if (newCount !== prevCount) {
+        console.log(`✨ [OceanSaksham Live]: ${newCount - prevCount} new WhatsApp report(s) synced!`);
+      }
+
+      // Always notify so the dashboard re-renders with latest data
+      const allWa = Object.values(window.__waReports);
+      this.notifyListeners('reports', allWa);
+      this.notifyListeners('userReports', allWa);
+      this.notifyListeners('pendingVerification', allWa);
+    } catch (e) {
+      // Silent catch
+    }
   }
 
   /**
@@ -69,6 +121,11 @@ class RealTimeService {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
+    }
+    
+    if (this.whatsAppSyncInterval) {
+      clearInterval(this.whatsAppSyncInterval);
+      this.whatsAppSyncInterval = null;
     }
     
     if (this.ws) {

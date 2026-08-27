@@ -371,12 +371,17 @@ const MapContainer = ({
       }
     ];
     
+    const deletedList = localDb.getCollection('deletedHazards') || [];
+    const deletedIds = new Set(deletedList.map(d => d?.id));
+
+    // Combine all hazards, strictly excluding any deleted reports
     const combinedHazards = [
-      // Demo hazards for demonstration
-      ...demoHazards,
-      // Include user reports that are not rejected
+      // Demo hazards for demonstration (excluding deleted)
+      ...demoHazards.filter(d => !deletedIds.has(d.id)),
+      // Include user reports that are not rejected or deleted
       ...userReports
         ?.filter(report => {
+          if (!report?.id || deletedIds.has(report.id)) return false;
           const isNotRejected = report?.verificationStatus !== 'rejected' && report?.status !== 'rejected';
           const hasLocation = report?.location || (report?.lat != null && report?.lng != null);
           return isNotRejected && hasLocation;
@@ -417,25 +422,27 @@ const MapContainer = ({
           };
         }),
 
-      // Official hazards (hotspots) - always include
-      ...officialHazards?.map(hazard => ({
-        ...hazard,
-        type: hazard?.hazardType || hazard?.type || 'general',
-        hazardType: hazard?.hazardType || hazard?.type || 'general',
-        lat: hazard?.lat ?? hazard?.coordinates?.lat ?? hazard?.coordinates?.latitude,
-        lng: hazard?.lng ?? hazard?.coordinates?.lng ?? hazard?.coordinates?.longitude,
-        reportedBy: hazard?.reportedBy || 'Official Authority',
-        reportedByRole: hazard?.reportedByRole || 'official',
-        source: hazard?.source || 'official',
-        status: hazard?.status || 'verified',
-        verificationStatus: hazard?.verificationStatus || 'verified',
-        timestamp: hazard?.timestamp instanceof Date ? hazard?.timestamp : new Date(hazard?.timestamp || Date.now())
-      }))
+      // Official hazards (hotspots) - always include unless deleted
+      ...officialHazards
+        ?.filter(h => !h?.id || !deletedIds.has(h.id))
+        ?.map(hazard => ({
+          ...hazard,
+          type: hazard?.hazardType || hazard?.type || 'general',
+          hazardType: hazard?.hazardType || hazard?.type || 'general',
+          lat: hazard?.lat ?? hazard?.coordinates?.lat ?? hazard?.coordinates?.latitude,
+          lng: hazard?.lng ?? hazard?.coordinates?.lng ?? hazard?.coordinates?.longitude,
+          reportedBy: hazard?.reportedBy || 'Official Authority',
+          reportedByRole: hazard?.reportedByRole || 'official',
+          source: hazard?.source || 'official',
+          status: hazard?.status || 'verified',
+          verificationStatus: hazard?.verificationStatus || 'verified',
+          timestamp: hazard?.timestamp instanceof Date ? hazard?.timestamp : new Date(hazard?.timestamp || Date.now())
+        }))
     ];
 
-    // Deduplicate by ID
+    // Deduplicate by ID and ensure not deleted
     const uniqueHazards = combinedHazards.reduce((acc, curr) => {
-      if (!acc.find(h => h.id === curr.id)) {
+      if (!acc.find(h => h.id === curr.id) && !deletedIds.has(curr.id)) {
         acc.push(curr);
       }
       return acc;
