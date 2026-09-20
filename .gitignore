@@ -1,5 +1,6 @@
 .DS_Store
-node_modules
+node_modules/
+backend/node_modules/
 .idea
 package-lock.json
 /build
@@ -7,3 +8,8 @@ package-lock.json
 .idea/
 vite.config.*s.*
 .env
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc

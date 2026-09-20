@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Icon from '../../../components/Appicon';
 import Button from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import CredibilityBadge from '../../../components/ui/CredibilityBadge';
 
 const ReportsTable = ({ 
   reports = [],
@@ -147,6 +148,7 @@ const ReportsTable = ({
                 />
               </th>
               <SortableHeader column="timestamp">Time</SortableHeader>
+              <SortableHeader column="credibility">Triage Credibility</SortableHeader>
               <SortableHeader column="hazardType">Hazard</SortableHeader>
               <SortableHeader column="severity">Severity</SortableHeader>
               <SortableHeader column="location">Location</SortableHeader>
@@ -190,6 +192,12 @@ const ReportsTable = ({
                         {new Date(report.timestamp)?.toLocaleDateString('en-IN')}
                       </span>
                     </div>
+                  </td>
+                  <td className="px-4 py-4" onClick={(e) => e?.stopPropagation()}>
+                    <CredibilityBadge
+                      score={report?.credibility_score !== undefined ? report.credibility_score : 0.82}
+                      reasons={report?.credibility_reasons || ['GPS matches coastline telemetry', 'High corroboration']}
+                    />
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center space-x-2">

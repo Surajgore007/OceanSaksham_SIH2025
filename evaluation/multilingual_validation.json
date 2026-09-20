@@ -1,0 +1,70 @@
+{
+  "verified_count": 5,
+  "total_languages": 9,
+  "mean_coverage_percent": 95.2,
+  "validation_matrix": {
+    "en": {
+      "name": "English",
+      "human_verified": true,
+      "reviewer": "Official Domain Lead",
+      "term_coverage_pct": 100.0,
+      "notes": "Primary reference lexicon"
+    },
+    "hi": {
+      "name": "Hindi (\u0939\u093f\u0902\u0926\u0940)",
+      "human_verified": true,
+      "reviewer": "Native Bilingual Meteorologist",
+      "term_coverage_pct": 98.4,
+      "notes": "Full coastal hazard lexicon translated and tested"
+    },
+    "mr": {
+      "name": "Marathi (\u092e\u0930\u093e\u0920\u0940)",
+      "human_verified": true,
+      "reviewer": "Maharashtra Maritime Volunteer",
+      "term_coverage_pct": 97.2,
+      "notes": "Coastal Konkan dialect nuances verified"
+    },
+    "ta": {
+      "name": "Tamil (\u0ba4\u0bae\u0bbf\u0bb4\u0bcd)",
+      "human_verified": true,
+      "reviewer": "Tamil Nadu Coastal Community Lead",
+      "term_coverage_pct": 98.0,
+      "notes": "Fisheries terminology verified"
+    },
+    "te": {
+      "name": "Telugu (\u0c24\u0c46\u0c32\u0c41\u0c17\u0c41)",
+      "human_verified": true,
+      "reviewer": "Visakhapatnam Cyclone Centre Volunteer",
+      "term_coverage_pct": 96.5,
+      "notes": "Storm surge & tidal surge terms verified"
+    },
+    "bn": {
+      "name": "Bengali (\u09ac\u09be\u0982\u09b2\u09be)",
+      "human_verified": false,
+      "reviewer": "Machine Translated with Rule Post-edit",
+      "term_coverage_pct": 92.0,
+      "notes": "Pilot validation ongoing in Sundarbans belt"
+    },
+    "gu": {
+      "name": "Gujarati (\u0a97\u0ac1\u0a9c\u0ab0\u0abe\u0aa4\u0ac0)",
+      "human_verified": false,
+      "reviewer": "Machine Translated with Rule Post-edit",
+      "term_coverage_pct": 91.5,
+      "notes": "Planned for Phase 2 field validation"
+    },
+    "ml": {
+      "name": "Malayalam (\u0d2e\u0d32\u0d2f\u0d3e\u0d33\u0d02)",
+      "human_verified": false,
+      "reviewer": "Machine Translated with Rule Post-edit",
+      "term_coverage_pct": 93.0,
+      "notes": "Planned for Phase 2 field validation"
+    },
+    "or": {
+      "name": "Odia (\u0b13\u0b21\u0b3c\u0b3f\u0b06)",
+      "human_verified": false,
+      "reviewer": "Machine Translated with Rule Post-edit",
+      "term_coverage_pct": 90.0,
+      "notes": "Planned for Phase 2 field validation in Odisha"
+    }
+  }
+}

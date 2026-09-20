@@ -1,0 +1,214 @@
+{
+  "spatial_split": {
+    "train_region": "West Coast (Mumbai, Gujarat, Kerala, Goa)",
+    "test_region": "East Coast (Chennai, Andhra Pradesh, Odisha, West Bengal)",
+    "train_samples": 578,
+    "test_samples": 422
+  },
+  "classifier_evaluation": [
+    {
+      "model": "Logistic Regression (L2)",
+      "precision": 0.941,
+      "precision_ci": [
+        0.909,
+        0.97
+      ],
+      "recall": 0.949,
+      "recall_ci": [
+        0.914,
+        0.976
+      ],
+      "f1": 0.945,
+      "f1_ci": [
+        0.923,
+        0.965
+      ],
+      "auc_roc": 0.987,
+      "auc_pr": 0.991
+    },
+    {
+      "model": "Random Forest (n=100)",
+      "precision": 0.942,
+      "precision_ci": [
+        0.905,
+        0.97
+      ],
+      "recall": 0.903,
+      "recall_ci": [
+        0.862,
+        0.938
+      ],
+      "f1": 0.922,
+      "f1_ci": [
+        0.895,
+        0.946
+      ],
+      "auc_roc": 0.984,
+      "auc_pr": 0.988
+    },
+    {
+      "model": "GBDT (Gradient Boosting)",
+      "precision": 0.922,
+      "precision_ci": [
+        0.886,
+        0.957
+      ],
+      "recall": 0.907,
+      "recall_ci": [
+        0.869,
+        0.944
+      ],
+      "f1": 0.915,
+      "f1_ci": [
+        0.886,
+        0.94
+      ],
+      "auc_roc": 0.983,
+      "auc_pr": 0.987
+    }
+  ],
+  "ranking_evaluation": [
+    {
+      "strategy": "FIFO Queue (Unsorted)",
+      "p@5": 0.4,
+      "p@10": 0.3,
+      "p@20": 0.15,
+      "ndcg@10": 0.437,
+      "ndcg@20": 0.282,
+      "t_first_min": 2.0
+    },
+    {
+      "strategy": "Severity-Only Heuristic",
+      "p@5": 0.6,
+      "p@10": 0.7,
+      "p@20": 0.55,
+      "ndcg@10": 0.698,
+      "ndcg@20": 0.586,
+      "t_first_min": 2.0
+    },
+    {
+      "strategy": "Hand-Crafted Rule Score",
+      "p@5": 1.0,
+      "p@10": 1.0,
+      "p@20": 1.0,
+      "ndcg@10": 1.0,
+      "ndcg@20": 1.0,
+      "t_first_min": 2.0
+    },
+    {
+      "strategy": "Logistic Regression Triage",
+      "p@5": 1.0,
+      "p@10": 1.0,
+      "p@20": 1.0,
+      "ndcg@10": 1.0,
+      "ndcg@20": 1.0,
+      "t_first_min": 2.0
+    },
+    {
+      "strategy": "Random Forest Triage",
+      "p@5": 1.0,
+      "p@10": 1.0,
+      "p@20": 1.0,
+      "ndcg@10": 1.0,
+      "ndcg@20": 1.0,
+      "t_first_min": 2.0
+    },
+    {
+      "strategy": "GBDT Triage",
+      "p@5": 1.0,
+      "p@10": 1.0,
+      "p@20": 1.0,
+      "ndcg@10": 1.0,
+      "ndcg@20": 1.0,
+      "t_first_min": 2.0
+    }
+  ],
+  "ablation_study": [
+    {
+      "configuration": "Without Location (GPS, EXIF, Coast)",
+      "auc_roc": 0.983,
+      "f1": 0.921,
+      "delta_auc": -0.0
+    },
+    {
+      "configuration": "Without Time (Delta, Diurnal Solar)",
+      "auc_roc": 0.982,
+      "f1": 0.912,
+      "delta_auc": -0.001
+    },
+    {
+      "configuration": "Without Text (Keywords, Length)",
+      "auc_roc": 0.983,
+      "f1": 0.918,
+      "delta_auc": 0.001
+    },
+    {
+      "configuration": "Without Media (Visual, Hash Dup)",
+      "auc_roc": 0.982,
+      "f1": 0.92,
+      "delta_auc": -0.0
+    },
+    {
+      "configuration": "Without Corroboration (Radius, Ratio)",
+      "auc_roc": 0.982,
+      "f1": 0.912,
+      "delta_auc": -0.0
+    },
+    {
+      "configuration": "Without Reporter (Reputation, Volume)",
+      "auc_roc": 0.983,
+      "f1": 0.918,
+      "delta_auc": 0.001
+    },
+    {
+      "configuration": "Without External Marine (Waves, Wind)",
+      "auc_roc": 0.968,
+      "f1": 0.886,
+      "delta_auc": -0.014
+    }
+  ],
+  "multilingual_breakdown": [
+    {
+      "language": "en",
+      "samples": 100,
+      "precision": 0.732,
+      "recall": 0.732,
+      "f1": 0.732
+    },
+    {
+      "language": "ta",
+      "samples": 39,
+      "precision": 0.5,
+      "recall": 0.75,
+      "f1": 0.6
+    },
+    {
+      "language": "te",
+      "samples": 81,
+      "precision": 1.0,
+      "recall": 0.935,
+      "f1": 0.966
+    },
+    {
+      "language": "or",
+      "samples": 111,
+      "precision": 0.969,
+      "recall": 0.9,
+      "f1": 0.933
+    },
+    {
+      "language": "bn",
+      "samples": 71,
+      "precision": 0.965,
+      "recall": 1.0,
+      "f1": 0.982
+    },
+    {
+      "language": "hi",
+      "samples": 20,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  ]
+}
