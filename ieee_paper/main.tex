@@ -81,7 +81,7 @@ $\downarrow$ \textit{Server-Sent Events (SSE)} \\
 \label{fig:arch}
 \end{figure}
 
-\subsection{Duplicate Detection & Audit Logging}
+\subsection{Duplicate Detection \& Audit Logging}
 Incoming reports are automatically screened against recent submissions using spatial distance ($d \le 2.0\text{ km}$), temporal window ($\Delta t \le 3.0\text{ h}$), and exact SHA-256 media hash comparison. Every official action (status changes, severity adjustments, hotspot creation) is recorded in an immutable \texttt{audit\_logs} table tracking operator identity, timestamps, old/new states, and override rationales.
 
 \section{Credibility Triage Feature Formulation}
@@ -133,8 +133,8 @@ We formulate a 19-dimensional feature vector $\mathbf{x} \in \mathbb{R}^{19}$ ac
     \item $x_{19} = H_s \times \text{Severity}_{\text{reported}}$: Sea-state consistency interaction term.
 \end{itemize}
 
-\section{Experimental Methodology & Dataset}
-\subsection{Synthetic Dataset & Threat Modeling}
+\section{Experimental Methodology \& Dataset}
+\subsection{Synthetic Dataset \& Threat Modeling}
 Due to the scarcity of publicly available ground-truth crowdsourced coastal disaster datasets with multimodal telemetry, evaluation was conducted on a synthetically generated benchmark of 1,000 reports designed around empirical coastal threat models:
 \begin{itemize}
     \item \textbf{Maritime GPS Degradation}: Genuine storm surge submissions with degraded GPS accuracy ($\pm 50\text{--}150\text{m}$) due to adverse coastal weather.
@@ -165,12 +165,12 @@ GBDT (Gradient Boosting) & $0.922\ [0.886, 0.957]$ & $0.907\ [0.869, 0.944]$ & $
 
 All three models perform within overlapping 95\% confidence intervals, indicating that standard linear and tree ensemble models reliably separate genuine hazards from false alarms under our multi-signal representation.
 
-\subsection{Queue Ranking & Triage Metrics}
+\subsection{Queue Ranking \& Triage Metrics}
 Table~\ref{tab:ranking} evaluates queue ranking effectiveness on the East Coast test queue.
 
 \begin{table}[htbp]
 \centering
-\caption{Queue Ranking & Triage Effectiveness (East Coast Test Set)}
+\caption{Queue Ranking \& Triage Effectiveness (East Coast Test Set)}
 \label{tab:ranking}
 \begin{tabular}{lcccccc}
 \toprule
