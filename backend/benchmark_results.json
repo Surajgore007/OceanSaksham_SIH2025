@@ -1,16 +1,16 @@
 {
   "test_type": "Sustained Mixed Workload (70% Read / 30% Write)",
-  "duration_s": "10.10",
+  "duration_s": "60.33",
   "concurrency_workers": 20,
-  "total_requests": 2222,
-  "successful_requests": 2222,
+  "total_requests": 4270,
+  "successful_requests": 4270,
   "error_rate_pct": 0,
-  "throughput_req_s": 220,
+  "throughput_req_s": 71,
   "latency_ms": {
-    "mean": 90.36,
-    "p50": 71.13,
-    "p95": 211.96,
-    "p99": 262.92
+    "mean": 281.86,
+    "p50": 226.31,
+    "p95": 646.68,
+    "p99": 851.65
   },
   "hardware_spec": "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, Windows loopback, SQLite backend"
 }

@@ -28,7 +28,7 @@
 \begin{abstract}
 Crowdsourced citizen reporting is an important mechanism for gathering hyper-local situational awareness during coastal emergencies such as storm surges, high wave breaches, tidal inundation, and shoreline erosion. However, emergency operation centres and disaster management agencies frequently encounter operational bottlenecks caused by unverified, noisy, duplicate, or uncalibrated submissions. In this paper, we present the system design, multi-signal feature architecture, and reproducible synthetic benchmark evaluation of \textbf{OceanSaksham}, an open-source platform for coastal hazard reporting featuring an explainable, human-in-the-loop credibility triage layer and cryptographically hash-chained audit logging.
 
-The proposed triage engine formulates 19 features across seven modalities: geospatial GPS precision, camera EXIF metadata cross-validation, temporal submission latency, multilingual Indic keyword alignment (across nine coastal Indian languages), exact-match cryptographic media hashing (SHA-256), spatial-temporal neighborhood corroboration, and real-time physical sea-state telemetry via the Open-Meteo Marine API. To evaluate the triage mechanics under controlled conditions, we formulate a 5-seed parameterized synthetic benchmark ($N=1,000$ per seed) evaluated under a strict region-held-out spatial split (training on West Coast regions, evaluating on East Coast regions). Across five independent dataset generations, regularized logistic regression achieves $F_1 = 0.946 \pm 0.004$ ($\text{AUC-ROC} = 0.988 \pm 0.001$), random forest achieves $F_1 = 0.938 \pm 0.009$ ($\text{AUC-ROC} = 0.987 \pm 0.002$), and gradient-boosted decision trees achieve $F_1 = 0.934 \pm 0.012$ ($\text{AUC-ROC} = 0.986 \pm 0.003$). We analyze the benchmark's properties, noting that rule-based heuristics perform identically to ML models on synthetic data. In local benchmarks over SQLite, the backend sustained 220 mixed read/write requests/second ($p_{50}=71.13\text{ ms}$). We detail the complete system pipeline, provide partial marine grounding against historical storm events, and discuss privacy design considerations informed by India's DPDP Act 2023.
+The proposed triage engine formulates 19 features across seven modalities: geospatial GPS precision, camera EXIF metadata cross-validation, temporal submission latency, multilingual Indic keyword alignment (across nine coastal Indian languages), exact-match cryptographic media hashing (SHA-256), spatial-temporal neighborhood corroboration, and real-time physical sea-state cross-validation via model-derived Open-Meteo marine data. To evaluate triage mechanics under controlled conditions, we formulate a 5-seed parameterized synthetic benchmark ($N=1,000$ per seed) evaluated under a region-held-out spatial split (training on West Coast regions, evaluating on East Coast regions). Across five independent dataset generations, regularized logistic regression achieves $F_1 = 0.946 \pm 0.004$ ($\text{AUC-ROC} = 0.988 \pm 0.001$), random forest achieves $F_1 = 0.938 \pm 0.009$ ($\text{AUC-ROC} = 0.987 \pm 0.002$), and gradient-boosted decision trees achieve $F_1 = 0.934 \pm 0.012$ ($\text{AUC-ROC} = 0.986 \pm 0.003$). We analyze the benchmark's properties, noting that rule-based heuristics perform identically to ML models on synthetic data. In a 60-second sustained load benchmark over SQLite, the backend sustained 71 mixed read/write requests/second ($p_{50}=226.31\text{ ms}$). We detail the complete system pipeline, provide partial marine sanity checks against historical storm events, and discuss privacy design considerations informed by India's DPDP Act 2023.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -43,17 +43,17 @@ However, raw citizen submissions present severe trust and filtering challenges f
 To address these challenges, this paper presents the engineering architecture, multi-signal feature formulation, and reproducible synthetic evaluation of \textbf{OceanSaksham}, focusing on four core contributions:
 \begin{enumerate}
     \item \textbf{Open-Source Full-Stack Architecture}: An end-to-end platform featuring token-bucket rate limiting, Server-Sent Events (SSE) broadcasting, spatial duplicate detection ($<2\text{km}, <3\text{h}$), cryptographically hash-chained append-only audit logging of official decisions, and a multi-state SOS alert workflow.
-    \item \textbf{Multi-Signal Feature Formulation}: A 19-dimensional feature representation spanning seven modalities: geospatial GPS precision, photo EXIF cross-validation, temporal urgency, multilingual Indic hazard keyword alignment, exact-match media hashing, spatial-temporal neighborhood corroboration, and physical sea-state validation via Open-Meteo marine telemetry.
+    \item \textbf{Multi-Signal Feature Formulation}: A 19-dimensional feature representation spanning seven modalities: geospatial GPS precision, photo EXIF cross-validation, temporal urgency, multilingual Indic hazard keyword alignment, exact-match media hashing, spatial-temporal neighborhood corroboration, and model-derived sea-state cross-validation via Open-Meteo marine data.
     \item \textbf{Explainable Human-in-the-Loop Console}: A dispatch dashboard that ranks incoming reports by credibility while exposing top positive and negative signal contributions, preserving complete operator authority while logging official overrides for model feedback.
     \item \textbf{Parameterized Synthetic Benchmark \& Baseline Harness}: A multi-seed synthetic evaluation harness and region-held-out spatial testbed across 14 coastal regions for systematic baseline benchmarking and future evaluation with real pilot data.
 \end{enumerate}
 
 \section{Related Work \& Platform Comparison}
 \subsection{Crisis Informatics \& Participatory Sensing}
-Crowdsourcing platforms such as Ushahidi demonstrated the utility of citizen crisis mapping during the 2010 Haiti earthquake~\cite{okolloh2009ushahidi}. In geophysics, the USGS \textit{``Did You Feel It?''} (DYFI) system established citizen reports as a valuable complement to physical seismograph arrays~\cite{wald1999did}. Sakaki et al.~\cite{sakaki2010earthquake} utilized social media streams as real-time event sensors for earthquake detection. However, raw social streams often lack structured telemetry, location verification, and spam resistance~\cite{reuter2018fifteen}.
+Crowdsourcing platforms such as Ushahidi demonstrated the utility of citizen crisis mapping during the 2010 Haiti earthquake~\cite{okolloh2009ushahidi}. In geophysics, the USGS \textit{``Did You Feel It?''} (DYFI) system established citizen reports as a valuable complement to physical seismograph arrays~\cite{wald1999utilization}. Sakaki et al.~\cite{sakaki2010earthquake} utilized social media streams as real-time event sensors for earthquake detection. However, raw social streams often lack structured telemetry, location verification, and spam resistance~\cite{reuter2018fifteen}.
 
 \subsection{Credibility Assessment \& Disaster NLP}
-Information credibility classification has traditionally leveraged propagation graphs and linguistic sentiment~\cite{castillo2011information}. Gupta et al.~\cite{gupta2013faking} demonstrated that over 86\% of disaster images during Hurricane Sandy were recycled fakes, emphasizing the necessity of media hashing and EXIF validation. Recent benchmarks such as HumAID~\cite{alam2021humaid} and CrisisNLP~\cite{imran2015processing} have expanded text filtering, while IndicNLP~\cite{kakkar2020indicbert} advanced Indic text processing. Our work builds upon these principles by embedding real-time physical marine sensor telemetry ($H_s$, wind speed) directly into the triage decision space.
+Information credibility classification has traditionally leveraged propagation graphs and linguistic sentiment~\cite{castillo2011information}. Gupta et al.~\cite{gupta2013faking} demonstrated that over 86\% of disaster images during Hurricane Sandy were recycled fakes, emphasizing the necessity of media hashing and EXIF validation. Recent benchmarks such as HumAID~\cite{alam2021humaid} and CrisisNLP~\cite{imran2015processing} have expanded text filtering, while IndicNLP~\cite{kakkar2020indicbert} advanced Indic text processing. Our work builds upon these principles by embedding real-time model-derived marine sea-state data ($H_s$, wind speed) directly into the triage decision space.
 
 \subsection{Platform Comparison Matrix}
 Table~\ref{tab:comparison} benchmarks OceanSaksham against representative crisis crowdsourcing and disaster management platforms based on publicly documented system capabilities and published literature.
@@ -65,15 +65,15 @@ Table~\ref{tab:comparison} benchmarks OceanSaksham against representative crisis
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Capability / Feature} & \textbf{Ushahidi}~\cite{okolloh2009ushahidi} & \textbf{USGS DYFI}~\cite{wald1999did} & \textbf{INCOIS SAMUDRA} & \textbf{Sahana Eden}~\cite{desilva2010sahana} & \textbf{OceanSaksham (Ours)} \\
+\textbf{Capability / Feature} & \textbf{Ushahidi}~\cite{okolloh2009ushahidi} & \textbf{USGS DYFI}~\cite{wald1999utilization} & \textbf{INCOIS SAMUDRA} & \textbf{Sahana Eden}~\cite{desilva2010sahana} & \textbf{OceanSaksham (Ours)} \\
 \midrule
 Primary Domain & General Crisis & Earthquakes & Ocean Forecasts & Relief Logistics & Coastal Hazards \\
-Multilingual Indic UI & Partial (Plugins) & No (EN/ES) & Yes (Govt. Languages) & Partial & Yes (9 Coastal Languages) \\
-Camera EXIF Cross-Check & No documented support & No documented support & No documented support & No documented support & Yes ($\Delta r_{\text{GPS-EXIF}}$) \\
-Spatial Deduplication & Manual Review & Grid-Aggregated (ZIP/Coord) & No & Partial (Incident Link) & Automated ($<2\text{km}, <3\text{h}$) \\
-Marine Sensor Triage & No & N/A (Seismic Domain) & Yes (Forecast Broadcast) & No & Yes (Open-Meteo Integration) \\
-Explainable Credibility Score & Manual Moderation & Rule Intensity (CDI) & No & No & Yes (7 Feature Groups) \\
-Audit Trail Integrity & Database Logs & Standard Server Logs & Not publicly documented & Role-based Logs & Cryptographic Hash Chain \\
+Multilingual Indic UI & Partial (Plugins) & Multiple (EN, ES, etc.) & Yes (Govt. Languages) & Partial & Yes (9 Coastal Languages) \\
+Camera EXIF Cross-Check & Not documented & Not documented & Not documented & Not documented & Yes ($\Delta r_{\text{GPS-EXIF}}$) \\
+Spatial Deduplication & Manual Review & Grid-Aggregated (ZIP/Coord) & Not documented & Partial (Incident Link) & Automated ($<2\text{km}, <3\text{h}$) \\
+Sea-State Cross-Check & No & N/A (Seismic Domain) & Yes (Forecast Broadcast) & No & Yes (Open-Meteo Integration) \\
+Explainable Credibility Score & Manual Moderation & Rule Intensity (CDI) & Not documented & No & Yes (7 Feature Groups) \\
+Audit Trail Integrity & Standard DB Logs & Server Access Logs & Not documented & Role-based Logs & Cryptographic Hash Chain \\
 SOS Emergency Workflow & No & No & No & Incident Tracking & Prototype State Machine$^\ast$ \\
 \bottomrule
 \end{tabular}%
@@ -101,7 +101,7 @@ As illustrated in Fig.~\ref{fig:arch}, the platform comprises three tiers:
 $\downarrow$ \textit{HTTPS / JWT Rate-Limited} \\
 \textbf{[OceanSaksham Backend Service]} \\
 $\bullet$ Duplicate Detection (Hash + $\Delta r < 2\text{km}$, $\Delta t < 3\text{h}$) \\
-$\bullet$ Open-Meteo Marine API (Significant Wave Height $H_s$, Wind) \\
+$\bullet$ Open-Meteo Marine Data (Significant Wave Height $H_s$, Wind) \\
 $\bullet$ Multi-Signal Credibility Scoring (7 Feature Groups) \\
 $\bullet$ Cryptographic Hash-Chained Audit Trail \\
 $\downarrow$ \textit{Server-Sent Events (SSE)} \\
@@ -257,17 +257,17 @@ Without Reporter & $0.986 \pm 0.003$ & $0.934 \pm 0.011$ & $+0.000 \pm 0.001$ \\
 The 7 feature groups represent the conceptual domain taxonomy; the synthetic ablation reveals that in this benchmark, external marine weather exhibits the largest marginal sensitivity ($\Delta\text{AUC} = -0.015 \pm 0.006$), reflecting the generator's inclusion of calm-water hoax scenarios.
 
 \subsection{Backend Throughput \& Sustained Load Benchmark}
-To evaluate backend performance under concurrent load, we executed a 10-second sustained benchmark against the Node.js/SQLite service on an Intel Core i5-12450HX host (8 physical cores: 4P+4E, 12 threads, 16GB RAM) over local loopback. The test simulated 20 concurrent worker clients submitting a mixed workload composed of 70\% credibility queue queries (\texttt{GET /api/reports?sort\_by=credibility}) and 30\% authenticated report submissions (\texttt{POST /api/reports}) requiring payload validation, spatial duplicate querying, and feature calculation.
+To evaluate backend performance under concurrent load, we executed a 60-second sustained benchmark against the Node.js/SQLite service on an Intel Core i5-12450HX host (8 physical cores: 4P+4E, 12 threads, 16GB RAM) over local loopback (client and server sharing host resources). The test simulated 20 concurrent worker clients submitting a mixed workload composed of 70\% credibility queue queries (\texttt{GET /api/reports?sort\_by=credibility}) and 30\% authenticated report submissions (\texttt{POST /api/reports}) requiring payload validation, spatial duplicate querying, and feature calculation. To measure raw transaction capacity, rate limiting was bypassed via pre-authorized test headers, starting from a base table of 50 seeded reports.
 
-Across 2,222 completed requests (zero errors, 0.00\% failure rate), the backend sustained a throughput of \textbf{220 requests/second}, with a mean latency of $90.36\text{ ms}$, median $p_{50} = 71.13\text{ ms}$, $p_{95} = 211.96\text{ ms}$, and $p_{99} = 262.92\text{ ms}$. This confirms the responsiveness of the single-node SQLite prototype under active concurrent submission and dispatch workloads.
+Across 4,270 completed requests (zero errors, 0.00\% failure rate), the backend sustained a throughput of \textbf{71 requests/second}, with a mean latency of $281.86\text{ ms}$, median $p_{50} = 226.31\text{ ms}$, $p_{95} = 646.68\text{ ms}$, and $p_{99} = 851.65\text{ ms}$. This benchmark establishes a reproducible local baseline for the single-node SQLite implementation under active mixed write and dispatch queries.
 
 \subsection{Oceanographic Sanity Check \& Extreme Event Comparison}
-To verify the physical realism of the Open-Meteo marine wave height thresholds ($H_s < 1.3\text{m}$ for calm sea-states vs. $H_s > 2.5\text{m}$ for rough/storm sea-states), we queried the Open-Meteo Marine Archive API~\cite{openmeteo2024marine} across coastal coordinates for two severe Indian tropical cyclone landfalls alongside calm seasonal baseline days:
+To verify the physical realism of the Open-Meteo marine wave height thresholds ($H_s < 1.3\text{m}$ for calm sea-states vs. $H_s > 2.5\text{m}$ for rough/storm sea-states), we queried the Open-Meteo Marine Archive API~\cite{openmeteo2024marine} across coastal coordinates for two severe Indian tropical cyclones alongside same-season pre-storm baseline days:
 \begin{itemize}
-    \item \textbf{Cyclone Biparjoy} (June 15, 2023, Jakhau Coast, Gujarat; $23.23^\circ\text{N}, 68.60^\circ\text{E}$): Model reanalysis yielded mean $H_s = 4.40\text{m}$ ($\max H_s = 4.66\text{m}$), correctly triggering the rough/severe marine threshold ($>2.5\text{m}$). On a calm post-monsoon day at the same coordinate (Nov 15, 2023), mean $H_s$ dropped to $0.33\text{m}$ ($\max H_s = 0.38\text{m}$).
-    \item \textbf{Cyclone Michaung} (Dec 4, 2023, Chennai Coast, Tamil Nadu; $13.08^\circ\text{N}, 80.27^\circ\text{E}$): Mean $H_s = 2.54\text{m}$ ($\max H_s = 3.34\text{m}$), whereas a pre-monsoon baseline day (Apr 15, 2023) yielded mean $H_s = 0.52\text{m}$.
+    \item \textbf{Cyclone Biparjoy} (Landfall near Jakhau, Gujarat on 15 June 2023; $23.23^\circ\text{N}, 68.60^\circ\text{E}$): Numerical wave model reanalysis yielded mean $H_s = 4.40\text{m}$ ($\max H_s = 4.66\text{m}$), triggering the rough/severe marine threshold ($>2.5\text{m}$). On a same-season pre-storm baseline day at the same coordinate (7 June 2023), mean $H_s$ was $1.19\text{m}$ ($\max H_s = 1.34\text{m}$).
+    \item \textbf{Cyclone Michaung} (Tracking close along the Chennai coast, Tamil Nadu on 3--4 December 2023 before making landfall near Bapatla, Andhra Pradesh on 5 December 2023; $13.08^\circ\text{N}, 80.27^\circ\text{E}$): Model output on 4 December 2023 yielded mean $H_s = 2.54\text{m}$ (marginal around the threshold, $\max H_s = 3.34\text{m}$), whereas a same-season pre-storm baseline day (26 November 2023) yielded mean $H_s = 1.16\text{m}$.
 \end{itemize}
-While Open-Meteo provides gridded numerical wave model estimates rather than in-situ physical buoy measurements, this sanity check confirms that our heuristic thresholds separate verified cyclone sea states from typical calm coastal conditions.
+Open-Meteo provides gridded numerical wave model estimates (based on ECMWF WAM and NOAA GFS reanalyses under ODbL terms) rather than in-situ physical buoy measurements. This check indicates that our heuristic thresholds behave in a manner consistent with model-derived wave distributions during verified storm events versus calm coastal baselines.
 
 \section{Limitations \& Ethical Considerations}
 \textbf{Limitations}:
@@ -292,7 +292,7 @@ The platform incorporates privacy protections informed by India's Digital Person
 We presented OceanSaksham, an open-source architecture for credibility-aware triage and audit logging in crowdsourced coastal hazard management. By coupling multi-signal feature engineering with real-time oceanographic validation and cryptographic audit trails, the platform offers an explainable, human-in-the-loop dispatch environment. Future work includes field piloting with regional disaster management authorities and INCOIS, collecting real citizen report streams, and exploring on-device edge ML for low-connectivity coastal fishing operations.
 
 \section*{Acknowledgment}
-This research was developed as part of the OceanSaksham coastal resilience initiative. Oceanographic weather data is accessed via the Open-Meteo Marine API under Open Database License (ODbL) terms.
+This research was developed as part of the OceanSaksham coastal resilience initiative. Oceanographic wave model data is accessed via the Open-Meteo Marine API under Open Database License (ODbL) terms.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}

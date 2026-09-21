@@ -1,9 +1,8 @@
 """
-Historical Marine Telemetry & Extreme Weather Comparison
-Queries Open-Meteo Historical Marine Archive API for known cyclone landfall dates:
-- Cyclone Biparjoy (June 14-15, 2023, Gujarat Coast)
-- Cyclone Michaung (Dec 3-4, 2023, Chennai/Andhra Coast)
-vs calm baseline days at the same coastal coordinates.
+Historical Marine Model Sanity Check with Same-Season Pre-Storm Baselines
+Queries Open-Meteo Marine Archive API for:
+1. Cyclone Biparjoy (June 15, 2023, Jakhau, Gujarat) vs Pre-Storm Same-Season Baseline (June 7, 2023)
+2. Cyclone Michaung (Dec 4, 2023, Chennai, Tamil Nadu) vs Pre-Storm Same-Season Baseline (Nov 26, 2023)
 """
 
 import urllib.request
@@ -11,7 +10,7 @@ import json
 
 HISTORICAL_EVENTS = [
     {
-        "event": "Cyclone Biparjoy (Extreme Storm)",
+        "event": "Cyclone Biparjoy (Landfall Day)",
         "location": "Jakhau Coast, Gujarat",
         "lat": 23.23,
         "lng": 68.60,
@@ -19,34 +18,34 @@ HISTORICAL_EVENTS = [
         "expected_state": "Severe (>2.5m)"
     },
     {
-        "event": "Calm Baseline Day (Post-Monsoon)",
+        "event": "Pre-Biparjoy Same-Season Baseline (1 Week Prior)",
         "location": "Jakhau Coast, Gujarat",
         "lat": 23.23,
         "lng": 68.60,
-        "date": "2023-11-15",
-        "expected_state": "Calm (<1.3m)"
+        "date": "2023-06-07",
+        "expected_state": "Moderate/Calm (<2.5m)"
     },
     {
-        "event": "Cyclone Michaung (Severe Storm)",
+        "event": "Cyclone Michaung (Near-Coast Offshore Track)",
         "location": "Chennai Coast, Tamil Nadu",
         "lat": 13.08,
         "lng": 80.27,
         "date": "2023-12-04",
-        "expected_state": "Severe (>2.5m)"
+        "expected_state": "Severe/Marginal (>2.5m)"
     },
     {
-        "event": "Calm Baseline Day (Pre-Monsoon)",
+        "event": "Pre-Michaung Same-Season Baseline (1 Week Prior)",
         "location": "Chennai Coast, Tamil Nadu",
         "lat": 13.08,
         "lng": 80.27,
-        "date": "2023-04-15",
+        "date": "2023-11-26",
         "expected_state": "Calm (<1.3m)"
     }
 ]
 
-def fetch_historical_marine():
+def run_check():
     print("=" * 60)
-    print("Open-Meteo Historical Marine Data Sanity Check")
+    print("Open-Meteo Marine Model Historical Sanity Check")
     print("=" * 60)
     
     results = []
@@ -73,8 +72,7 @@ def fetch_historical_marine():
                     "lng": item['lng'],
                     "max_wave_height_m": round(max_hs, 2),
                     "mean_wave_height_m": round(mean_hs, 2),
-                    "categorized_sea_state": state,
-                    "rule_behavior": "CORRECT" if (("Severe" in state and "Severe" in item['expected_state']) or ("Calm" in state and "Calm" in item['expected_state'])) else "MISMATCH"
+                    "categorized_sea_state": state
                 }
                 results.append(res)
                 print(f"[{item['event']}] {item['location']} ({item['date']})")
@@ -85,7 +83,7 @@ def fetch_historical_marine():
     with open("ml_pipeline/historical_marine_check.json", "w") as f:
         json.dump(results, f, indent=2)
     print("=" * 60)
-    print("Historical check completed and saved.")
+    print("Sanity check completed and saved to ml_pipeline/historical_marine_check.json")
 
 if __name__ == "__main__":
-    fetch_historical_marine()
+    run_check()
