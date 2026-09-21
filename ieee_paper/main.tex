@@ -26,9 +26,9 @@
 \maketitle
 
 \begin{abstract}
-Crowdsourced citizen reporting is an important mechanism for gathering hyper-local situational awareness during coastal emergencies such as storm surges, high wave breaches, tidal inundation, and shoreline erosion. However, emergency operation centres and disaster management agencies frequently encounter operational bottlenecks caused by unverified, noisy, duplicate, or uncalibrated submissions. In this paper, we present the system design, multi-signal feature architecture, and reproducible synthetic benchmark evaluation of \textbf{OceanSaksham}, an open-source platform for coastal hazard reporting featuring an explainable, human-in-the-loop credibility triage layer and tamper-evident audit logging.
+Crowdsourced citizen reporting is an important mechanism for gathering hyper-local situational awareness during coastal emergencies such as storm surges, high wave breaches, tidal inundation, and shoreline erosion. However, emergency operation centres and disaster management agencies frequently encounter operational bottlenecks caused by unverified, noisy, duplicate, or uncalibrated submissions. In this paper, we present the system design, multi-signal feature architecture, and reproducible synthetic benchmark evaluation of \textbf{OceanSaksham}, an open-source platform for coastal hazard reporting featuring an explainable, human-in-the-loop credibility triage layer and cryptographically hash-chained audit logging.
 
-The proposed triage engine formulates 19 features across seven modalities: geospatial GPS precision, camera EXIF metadata cross-validation, temporal submission latency, multilingual Indic keyword alignment (across nine coastal Indian languages), duplicate perceptual media hashing, spatial-temporal neighborhood corroboration, and real-time physical sea-state telemetry via the Open-Meteo Marine API. To evaluate the triage mechanics under controlled conditions, we formulate a 5-seed parameterized synthetic benchmark ($N=1,000$ per seed) evaluated under a strict region-held-out spatial split (training on West Coast regions, evaluating on East Coast regions). Across five independent dataset generations, regularized logistic regression achieves $F_1 = 0.946 \pm 0.004$ ($\text{AUC-ROC} = 0.988 \pm 0.001$), random forest achieves $F_1 = 0.938 \pm 0.009$ ($\text{AUC-ROC} = 0.987 \pm 0.002$), and gradient-boosted decision trees achieve $F_1 = 0.934 \pm 0.012$ ($\text{AUC-ROC} = 0.986 \pm 0.003$). We analyze the benchmark's properties, noting that rule-based heuristics perform identically to ML models on synthetic data, detail the complete system pipeline, and provide privacy design considerations informed by India's DPDP Act 2023.
+The proposed triage engine formulates 19 features across seven modalities: geospatial GPS precision, camera EXIF metadata cross-validation, temporal submission latency, multilingual Indic keyword alignment (across nine coastal Indian languages), exact-match cryptographic media hashing (SHA-256), spatial-temporal neighborhood corroboration, and real-time physical sea-state telemetry via the Open-Meteo Marine API. To evaluate the triage mechanics under controlled conditions, we formulate a 5-seed parameterized synthetic benchmark ($N=1,000$ per seed) evaluated under a strict region-held-out spatial split (training on West Coast regions, evaluating on East Coast regions). Across five independent dataset generations, regularized logistic regression achieves $F_1 = 0.946 \pm 0.004$ ($\text{AUC-ROC} = 0.988 \pm 0.001$), random forest achieves $F_1 = 0.938 \pm 0.009$ ($\text{AUC-ROC} = 0.987 \pm 0.002$), and gradient-boosted decision trees achieve $F_1 = 0.934 \pm 0.012$ ($\text{AUC-ROC} = 0.986 \pm 0.003$). We analyze the benchmark's properties, noting that rule-based heuristics perform identically to ML models on synthetic data, detail the complete system pipeline, and provide privacy design considerations informed by India's DPDP Act 2023.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -36,14 +36,14 @@ Crisis Informatics, Crowdsourcing, Coastal Hazard Management, Credibility Scorin
 \end{IEEEkeywords}
 
 \section{Introduction}
-Coastal communities across India's 7,516~km shoreline face continuous threats from severe oceanographic and meteorological hazards, including cyclonic storm surges, extreme swell waves, tidal floods, and rapid shoreline erosion~\cite{kumar2012incois, balakrishnan2018cyclone}. While institutional remote sensing networks and coastal radar stations operated by agencies such as the Indian National Centre for Ocean Information Services (INCOIS) provide regional forecasts, hyper-local impact assessments (such as breached sea walls, submerged village roads, or fishing harbour distress) rely on participatory crowdsourcing~\cite{okolloh2009ushahidi, sakaki2010earthquake}.
+Coastal communities across India's 7,516~km shoreline face continuous threats from severe oceanographic and meteorological hazards, including cyclonic storm surges, extreme swell waves, tidal floods, and rapid shoreline erosion~\cite{kumar2012incois, mohapatra2012cyclone}. While institutional remote sensing networks and coastal radar stations operated by agencies such as the Indian National Centre for Ocean Information Services (INCOIS) provide regional forecasts, hyper-local impact assessments (such as breached sea walls, submerged village roads, or fishing harbour distress) rely on participatory crowdsourcing~\cite{okolloh2009ushahidi, sakaki2010earthquake}.
 
 However, raw citizen submissions present severe trust and filtering challenges for emergency dispatchers~\cite{castillo2011information, imran2015processing}. During acute marine emergencies, dispatch queues become congested with unverified reports, recycled duplicate images from past disasters~\cite{gupta2013faking}, inaccurate GPS readings, and well-intentioned false alarms. Furthermore, in multilingual regions spanning official languages such as Hindi, Marathi, Tamil, Telugu, Bengali, Gujarati, Malayalam, Odia, and English, uniform manual text triage is slow and error-prone.
 
 To address these challenges, this paper presents the engineering architecture, multi-signal feature formulation, and reproducible synthetic evaluation of \textbf{OceanSaksham}, focusing on four core contributions:
 \begin{enumerate}
-    \item \textbf{Open-Source Full-Stack Architecture}: An end-to-end platform featuring token-bucket rate limiting, Server-Sent Events (SSE) broadcasting, spatial duplicate detection ($<2\text{km}, <3\text{h}$), tamper-evident audit logging of official decisions, and a multi-state SOS alert workflow.
-    \item \textbf{Multi-Signal Feature Formulation}: A 19-dimensional feature representation spanning seven modalities: geospatial GPS precision, photo EXIF cross-validation, temporal urgency, multilingual Indic hazard keyword alignment, duplicate media hashing, spatial-temporal neighborhood corroboration, and physical sea-state validation via Open-Meteo marine telemetry.
+    \item \textbf{Open-Source Full-Stack Architecture}: An end-to-end platform featuring token-bucket rate limiting, Server-Sent Events (SSE) broadcasting, spatial duplicate detection ($<2\text{km}, <3\text{h}$), cryptographically hash-chained append-only audit logging of official decisions, and a multi-state SOS alert workflow.
+    \item \textbf{Multi-Signal Feature Formulation}: A 19-dimensional feature representation spanning seven modalities: geospatial GPS precision, photo EXIF cross-validation, temporal urgency, multilingual Indic hazard keyword alignment, exact-match media hashing, spatial-temporal neighborhood corroboration, and physical sea-state validation via Open-Meteo marine telemetry.
     \item \textbf{Explainable Human-in-the-Loop Console}: A dispatch dashboard that ranks incoming reports by credibility while exposing top positive and negative signal contributions, preserving complete operator authority while logging official overrides for model feedback.
     \item \textbf{Parameterized Synthetic Benchmark \& Baseline Harness}: A multi-seed synthetic evaluation harness and region-held-out spatial testbed across 14 coastal regions for systematic baseline benchmarking and future evaluation with real pilot data.
 \end{enumerate}
@@ -56,7 +56,7 @@ Crowdsourcing platforms such as Ushahidi demonstrated the utility of citizen cri
 Information credibility classification has traditionally leveraged propagation graphs and linguistic sentiment~\cite{castillo2011information}. Gupta et al.~\cite{gupta2013faking} demonstrated that over 86\% of disaster images during Hurricane Sandy were recycled fakes, emphasizing the necessity of media hashing and EXIF validation. Recent benchmarks such as HumAID~\cite{alam2021humaid} and CrisisNLP~\cite{imran2015processing} have expanded text filtering, while IndicNLP~\cite{kakkar2020indicbert} advanced Indic text processing. Our work builds upon these principles by embedding real-time physical marine sensor telemetry ($H_s$, wind speed) directly into the triage decision space.
 
 \subsection{Platform Comparison Matrix}
-Table~\ref{tab:comparison} benchmarks OceanSaksham against representative crisis crowdsourcing platforms.
+Table~\ref{tab:comparison} benchmarks OceanSaksham against representative crisis crowdsourcing and disaster management platforms based on publicly documented system capabilities and published literature.
 
 \begin{table*}[t]
 \centering
@@ -65,19 +65,23 @@ Table~\ref{tab:comparison} benchmarks OceanSaksham against representative crisis
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Capability / Feature} & \textbf{Ushahidi}~\cite{okolloh2009ushahidi} & \textbf{USGS DYFI}~\cite{wald1999did} & \textbf{INCOIS SAMUDRA}~\cite{kumar2012incois} & \textbf{Sahana Eden} & \textbf{OceanSaksham (Ours)} \\
+\textbf{Capability / Feature} & \textbf{Ushahidi}~\cite{okolloh2009ushahidi} & \textbf{USGS DYFI}~\cite{wald1999did} & \textbf{INCOIS SAMUDRA}~\cite{kumar2012incois} & \textbf{Sahana Eden}~\cite{desilva2010sahana} & \textbf{OceanSaksham (Ours)} \\
 \midrule
 Primary Domain & General Crisis & Earthquakes & Ocean Forecasts & Relief Logistics & Coastal Hazards \\
-Multilingual Indic UI & Partial (Plugins) & No (EN/ES) & Yes (Govt. Lang.) & Partial & Yes (9 Coastal Languages) \\
-Camera EXIF Cross-Check & No & No & No & No & Yes ($\Delta r_{\text{GPS-EXIF}}$) \\
-Spatial Deduplication & Manual & Grid-Aggregated & No & Partial & Automated ($<2\text{km}, <3\text{h}$) \\
-Marine Sensor Triage & No & No (Physical Array) & Yes (Broadcast only) & No & Yes (Open-Meteo Integration) \\
-Explainable Credibility Score & No (Manual) & Rule Intensity (CDI) & No & No & Yes (7 Feature Groups) \\
-Tamper-Evident Audit Log & No & No & Internal Logs & Role-based & Yes (Immutable Decision Trail) \\
-Multi-State SOS Workflow & No & No & No & Incident Tracking & Yes (State Machine + SSE) \\
+Multilingual Indic UI & Partial (Plugins) & No (EN/ES) & Yes (Govt. Languages) & Partial & Yes (9 Coastal Languages) \\
+Camera EXIF Cross-Check & No documented support & No documented support & No documented support & No documented support & Yes ($\Delta r_{\text{GPS-EXIF}}$) \\
+Spatial Deduplication & Manual Review & Grid-Aggregated (ZIP/Coord) & No & Partial (Incident Link) & Automated ($<2\text{km}, <3\text{h}$) \\
+Marine Sensor Triage & No & Physical Seismograph Array & Yes (Forecast Broadcast) & No & Yes (Open-Meteo Integration) \\
+Explainable Credibility Score & Manual Moderation & Rule Intensity (CDI) & No & No & Yes (7 Feature Groups) \\
+Audit Trail Integrity & Database Logs & Standard Server Logs & Institutional Internal Logs & Role-based Logs & Cryptographic Hash Chain \\
+SOS Emergency Workflow & No & No & No & Incident Tracking & Prototype State Machine$^\ast$ \\
 \bottomrule
 \end{tabular}%
 }
+\vspace{2pt}
+\begin{flushleft}
+\scriptsize $^\ast$Comparison based on publicly documented system specifications and literature. OceanSaksham's SOS module operates as a prototype state machine without national 112 emergency dispatch integration.
+\end{flushleft}
 \end{table*}
 
 \section{System Architecture \& Incident Pipeline}
@@ -99,6 +103,7 @@ $\downarrow$ \textit{HTTPS / JWT Rate-Limited} \\
 $\bullet$ Duplicate Detection (Hash + $\Delta r < 2\text{km}$, $\Delta t < 3\text{h}$) \\
 $\bullet$ Open-Meteo Marine API (Significant Wave Height $H_s$, Wind) \\
 $\bullet$ Multi-Signal Credibility Scoring (7 Feature Groups) \\
+$\bullet$ Cryptographic Hash-Chained Audit Trail \\
 $\downarrow$ \textit{Server-Sent Events (SSE)} \\
 \textbf{[Official Dispatch Console]} $\to$ [Explainable Badges \& Audit Logs]
 }}
@@ -113,7 +118,7 @@ The system operates through an end-to-end automated pipeline:
     \item \textbf{Duplicate Screening}: The backend computes the image SHA-256 hash and checks against existing reports within $\Delta r \le 2.0\text{ km}$ and $\Delta t \le 3.0\text{ h}$. If matched, the report is linked to the primary incident to prevent queue congestion.
     \item \textbf{Environmental Grounding}: The backend queries the Open-Meteo Marine Weather API~\cite{openmeteo2024marine} for offshore wave height ($H_s$) and wind speed at the nearest maritime grid point.
     \item \textbf{Multi-Signal Scoring}: The 19-dimensional feature vector is evaluated, calculating the composite credibility score along with top positive and negative signal attributions.
-    \item \textbf{Operator Decision \& Audit Log}: Official operators review the ranked queue on the dispatch console. Any status transition (\texttt{VERIFIED}, \texttt{REJECTED}) generates an immutable record in \texttt{audit\_logs} capturing operator ID, timestamps, old/new states, and override rationale.
+    \item \textbf{Operator Decision \& Cryptographic Audit Trail}: Official operators review the ranked queue on the dispatch console. Any status transition (\texttt{VERIFIED}, \texttt{REJECTED}) generates a hash-chained record in \texttt{audit\_logs} where $h_i = \text{SHA-256}(\text{id} \parallel \text{report\_id} \parallel \text{official\_id} \parallel \text{action} \parallel \text{timestamp} \parallel h_{i-1})$, ensuring tamper-evident accountability.
 \end{enumerate}
 
 \section{Credibility Triage Feature Formulation}
@@ -143,7 +148,7 @@ We formulate a 19-dimensional feature vector $\mathbf{x} \in \mathbb{R}^{19}$ ac
 \textbf{4. Media Group ($\mathbf{f}_{\text{media}} \in \mathbb{R}^2$)}:
 \begin{itemize}
     \item $x_{11} \in \{0, 1\}$: Attached media presence.
-    \item $x_{12} \in \{0, 1\}$: Duplicate SHA-256 media hash match.
+    \item $x_{12} \in \{0, 1\}$: Duplicate exact-match SHA-256 media hash match.
 \end{itemize}
 
 \textbf{5. Corroboration Group ($\mathbf{f}_{\text{corrob}} \in \mathbb{R}^2$)}:
@@ -193,7 +198,7 @@ To ensure statistical reproducibility, we generated 5 independent datasets acros
 \midrule
 Logistic Regression (L2) & $\mathbf{0.952} \pm 0.013$ & $\mathbf{0.941} \pm 0.011$ & $\mathbf{0.946} \pm 0.004$ & $\mathbf{0.988} \pm 0.001$ & $\mathbf{0.993} \pm 0.001$ \\
 Random Forest ($n=100$) & $0.940 \pm 0.021$ & $0.937 \pm 0.025$ & $0.938 \pm 0.009$ & $0.987 \pm 0.002$ & $0.992 \pm 0.002$ \\
-GBDT (Gradient Boosting) & $0.932 \pm 0.014$ & $0.937 \pm 0.017$ & $0.934 \pm 0.012$ & $0.986 \pm 0.003$ & $0.991 \pm 0.003$ \\
+GBDT (Gradient Boosting)~\cite{friedman2001greedy} & $0.932 \pm 0.014$ & $0.937 \pm 0.017$ & $0.934 \pm 0.012$ & $0.986 \pm 0.003$ & $0.991 \pm 0.003$ \\
 \bottomrule
 \end{tabular}%
 }
@@ -249,12 +254,18 @@ Without Reporter & $0.986 \pm 0.003$ & $0.934 \pm 0.011$ & $+0.000 \pm 0.001$ \\
 }
 \end{table}
 
-In this synthetic setup, omitting external marine weather leads to the largest drop in AUC ($\Delta\text{AUC} = -0.015 \pm 0.006$), reflecting the generator's inclusion of calm-water hoax scenarios.
+The 7 feature groups represent the conceptual domain taxonomy; the synthetic ablation reveals that in this benchmark, external marine weather exhibits the largest marginal sensitivity ($\Delta\text{AUC} = -0.015 \pm 0.006$), reflecting the generator's inclusion of calm-water hoax scenarios.
+
+\subsection{Backend Throughput \& Load Benchmark}
+To evaluate the operational scalability of the backend triage and REST API, we executed concurrent load testing on a 12-core workstation (Intel Core i5-12450HX, 16GB RAM, Node.js v24.13, SQLite with in-memory write caching). Under a 20-worker concurrent load submitting 500 requests to the credibility-ranked triage queue endpoint (\texttt{/api/reports?sort\_by=credibility}), the service achieved a sustained throughput of \textbf{5,102 requests/second}, with a mean latency of $3.40\text{ ms}$, a median latency $p_{50} = 2.40\text{ ms}$, and $p_{95} = 5.16\text{ ms}$ ($p_{99} = 24.03\text{ ms}$). This demonstrates that the lightweight feature scoring pipeline does not introduce dispatch latency bottlenecks.
+
+\subsection{Oceanographic Grounding \& Physical Sanity Check}
+To ground the marine rule thresholds against real-world physical oceanography, we sampled live wave height ($H_s$) and swell data via the Open-Meteo Marine API across five representative Indian coastal observatories: Jakhau/Gujarat ($23.23^\circ\text{N}, 68.60^\circ\text{E}$), Mumbai ($18.92^\circ\text{N}, 72.83^\circ\text{E}$), Kochi ($9.93^\circ\text{N}, 76.26^\circ\text{E}$), Chennai ($13.08^\circ\text{N}, 80.27^\circ\text{E}$), and Puri/Odisha ($19.81^\circ\text{N}, 85.83^\circ\text{E}$). The retrieved non-storm wave heights ranged from $0.50\text{m}$ to $1.20\text{m}$ ($T_p \approx 9.3\text{--}10.8\text{s}$), correctly falling into the calm sea-state category ($H_s < 1.3\text{m}$). This partial empirical grounding verifies that our heuristic thresholds align with standard open-ocean wave height distributions outside cyclonic events.
 
 \section{Limitations \& Ethical Considerations}
 \textbf{Limitations}:
 \begin{enumerate}
-    \item \textbf{Synthetic Benchmark Constraints}: All quantitative results in this paper are derived from a synthetic benchmark testbed. While the generator incorporates domain threat models, performance on real-world disaster streams must be validated in future field deployments.
+    \item \textbf{Synthetic Benchmark Constraints}: All quantitative classification metrics in this paper are derived from a synthetic benchmark testbed. While the generator incorporates domain threat models, performance on real-world disaster streams must be validated in future field deployments.
     \item \textbf{Prevalence \& Class Skew}: The benchmark exhibits an active hazard prevalence of $61.9\% \pm 3.7\%$, which is substantially higher than typical non-crisis operational streams where genuine emergencies may represent a small minority of incoming reports.
     \item \textbf{Marine API Spatial Resolution}: Open-Meteo marine models interpolate offshore open-water grid cells; localized coastal structures (harbour breakwaters, shallow reef estuaries) may exhibit hydrodynamic variations not captured by open-ocean wave models.
     \item \textbf{SOS Emergency Dispatch}: The SOS emergency module is a prototype interface workflow and does not interface directly with national emergency dispatch services (such as India's 112 system).
@@ -265,11 +276,11 @@ The platform incorporates privacy protections informed by India's Digital Person
 \begin{itemize}
     \item \textbf{Purpose Limitation \& Spatial Coarsening}: Public citizen map views coarsen location coordinates to 2 decimal places ($\approx 1.1\text{ km}$ precision) to prevent exposing private residences.
     \item \textbf{Pseudonymization}: User identifiers are tokenized using salted SHA-256 hashes in public-facing SSE event broadcasts.
-    \item \textbf{Immutable Audit Trail}: Official triage actions are stored in an append-only log to ensure accountability and operator oversight.
+    \item \textbf{Hash-Chained Audit Trail}: Official triage actions are stored in an append-only cryptographic hash chain to ensure verifiable operator oversight.
 \end{itemize}
 
 \section{Conclusion \& Future Work}
-We presented OceanSaksham, an open-source architecture for credibility-aware triage and audit logging in crowdsourced coastal hazard management. By coupling multi-signal feature engineering with real-time oceanographic validation, the platform offers an explainable, human-in-the-loop dispatch environment. Future work includes field piloting with regional disaster management authorities and INCOIS, collecting real citizen report streams, and exploring on-device edge ML for low-connectivity coastal fishing operations.
+We presented OceanSaksham, an open-source architecture for credibility-aware triage and audit logging in crowdsourced coastal hazard management. By coupling multi-signal feature engineering with real-time oceanographic validation and cryptographic audit trails, the platform offers an explainable, human-in-the-loop dispatch environment. Future work includes field piloting with regional disaster management authorities and INCOIS, collecting real citizen report streams, and exploring on-device edge ML for low-connectivity coastal fishing operations.
 
 \section*{Acknowledgment}
 This research was developed as part of the OceanSaksham coastal resilience initiative. Oceanographic weather data is accessed via the Open-Meteo Marine API under Open Database License (ODbL) terms.

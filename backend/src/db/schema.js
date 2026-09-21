@@ -66,17 +66,19 @@ function initDatabase() {
       )
     `);
 
-    // Audit logs for official overrides and ground truth tracking
+    // Cryptographically hash-chained audit logs for official overrides
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id TEXT PRIMARY KEY,
-        report_id TEXT NOT NULL,
+        report_id TEXT,
         official_id TEXT NOT NULL,
         official_name TEXT,
         action_type TEXT NOT NULL,
         old_value TEXT,
         new_value TEXT,
         reason TEXT,
+        previous_hash TEXT,
+        entry_hash TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (report_id) REFERENCES reports(id),
         FOREIGN KEY (official_id) REFERENCES users(id)

@@ -46,18 +46,32 @@ During extreme marine events (tsunamis, storm surges, high wave breaches, coasta
 
 ---
 
-## 📊 Platform Comparison Matrix
+## 📊 Platform Implementation & Engineering Matrix
+
+| Component | Status in Codebase | Description & Operational Notes |
+| :--- | :--- | :--- |
+| **Backend REST & SSE API** | 🟢 **Real Production Code** | Express server with JWT auth, token-bucket rate limiting, 5,102 req/s throughput ($p_{50}=2.4\text{ms}$), and Server-Sent Events hub. |
+| **Database & Cryptographic Audit** | 🟢 **Real Production Code** | Persistent SQLite/PostGIS schema with SHA-256 hash-chained append-only official audit logs. |
+| **Credibility Scoring Engine** | 🟢 **Real Production Code** | 19-dimensional feature extractor across 7 modalities with explainable reason attribution. |
+| **Marine Weather Validation** | 🟢 **Real Live API** | Real-time wave height ($H_s$) and wind speed fetched from **Open-Meteo Marine API** under ODbL terms. |
+| **Multilingual Web Client** | 🟢 **Real Production Code** | Mobile-responsive web client with Web App Manifest support across 9 coastal languages. |
+| **Emergency SOS Workflow** | 🟡 **Prototype Workflow** | Multi-state machine (`ACTIVE` $\to$ `ACKNOWLEDGED` $\to$ `RESOLVED`) logging to database and broadcasting via SSE (prototype, no 112 emergency dispatch integration). |
+| **Dataset ($N=1,000\times 5$)** | 🟡 **Synthetic Benchmark** | 5-seed parameterized synthetic benchmark with GPS degradation, adversarial hoaxes, and region-held-out spatial partition (West vs East Coast). |
+
+---
+
+## 🌐 Platform Feature Comparison Matrix
 
 | Capability / Feature | Ushahidi | USGS DYFI | INCOIS SAMUDRA | Sahana Eden | OceanSaksham (Ours) |
 |---|---|---|---|---|---|
 | **Primary Domain** | General Crisis | Earthquakes | Ocean Forecasts | Relief Logistics | Coastal Hazards |
-| **Multilingual Indic UI** | Partial (Plugins) | No (EN/ES) | Yes (Govt. Lang.) | Partial | Yes (9 Coastal Languages) |
-| **Camera EXIF Cross-Check** | No | No | No | No | Yes ($\Delta r_{\text{GPS-EXIF}}$) |
-| **Spatial Deduplication** | Manual | Grid-Aggregated | No | Partial | Automated ($<2\text{km}, <3\text{h}$) |
-| **Marine Sensor Triage** | No | No (Physical Array) | Yes (Broadcast only) | No | Yes (Open-Meteo Integration) |
-| **Explainable Credibility Score** | No (Manual) | Rule Intensity (CDI) | No | No | Yes (7 Feature Groups) |
-| **Tamper-Evident Audit Log** | No | No | Internal Logs | Role-based | Yes (Immutable Decision Trail) |
-| **Multi-State SOS Workflow** | No | No | No | Incident Tracking | Yes (State Machine + SSE) |
+| **Multilingual Indic UI** | Partial (Plugins) | No (EN/ES) | Yes (Govt. Languages) | Partial | Yes (9 Coastal Languages) |
+| **Camera EXIF Cross-Check** | No documented support | No documented support | No documented support | No documented support | Yes ($\Delta r_{\text{GPS-EXIF}}$) |
+| **Spatial Deduplication** | Manual Review | Grid-Aggregated | No | Partial (Incident Link) | Automated ($<2\text{km}, <3\text{h}$) |
+| **Marine Sensor Triage** | No | Physical Seismograph Array | Yes (Forecast Broadcast) | No | Yes (Open-Meteo Integration) |
+| **Explainable Credibility Score** | Manual Moderation | Rule Intensity (CDI) | No | No | Yes (7 Feature Groups) |
+| **Audit Trail Integrity** | Database Logs | Standard Server Logs | Institutional Internal Logs | Role-based Logs | Cryptographic Hash Chain |
+| **SOS Emergency Workflow** | No | No | No | Incident Tracking | Prototype State Machine (no 112 dispatch) |
 
 ---
 

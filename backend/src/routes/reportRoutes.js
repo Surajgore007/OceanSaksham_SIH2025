@@ -5,6 +5,8 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { findDuplicates } = require('../services/duplicateDetection');
 const { computeCredibilityScore } = require('../services/triageService');
 const { broadcastEvent } = require('../services/sseService');
+const { fetchMarineWeather } = require('../services/marineService');
+const { recordAuditEntry } = require('../services/auditService');
 
 // POST /api/reports - Citizen / Official Report Submission
 router.post('/', authenticateToken, async (req, res) => {
@@ -200,13 +202,16 @@ router.patch('/:id/status', authenticateToken, requireRole('official'), (req, re
           return res.status(500).json({ error: updateErr.message });
         }
 
-        // Insert into audit log for ground-truth tracking
-        const auditId = `aud_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        db.run(
-          `INSERT INTO audit_logs (id, report_id, official_id, official_name, action_type, old_value, new_value, reason)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [auditId, id, req.user.id, req.user.name, 'STATUS_UPDATE', `${oldStatus} (${oldSeverity})`, `${status} (${newSeverity})`, reason]
-        );
+        // Insert into cryptographically hash-chained audit log
+        recordAuditEntry({
+          reportId: id,
+          officialId: req.user.id,
+          officialName: req.user.name,
+          actionType: 'STATUS_UPDATE',
+          oldValue: `${oldStatus} (${oldSeverity})`,
+          newValue: `${status} (${newSeverity})`,
+          reason
+        });
 
         // Update reporter reputation statistics
         if (currentReport.reporter_id) {

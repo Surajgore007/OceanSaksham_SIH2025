@@ -1,0 +1,13 @@
+{
+  "hardware": "12th Gen Intel(R) Core(TM) i5-12450HX (12 cores, 16GB RAM)",
+  "total_requests": 500,
+  "concurrency": 20,
+  "duration_s": "0.10",
+  "throughput_req_s": 5102,
+  "latency_ms": {
+    "mean": "3.40",
+    "p50": "2.40",
+    "p95": "5.16",
+    "p99": "24.03"
+  }
+}

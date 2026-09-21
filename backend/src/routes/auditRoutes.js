@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/schema');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { verifyAuditChain } = require('../services/auditService');
 
 // GET /api/audit-logs - View audit history for transparency and ground truth analysis
 router.get('/', authenticateToken, requireRole('official'), (req, res) => {
@@ -20,6 +21,16 @@ router.get('/', authenticateToken, requireRole('official'), (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     res.json(rows);
+  });
+});
+
+// GET /api/audit-logs/verify - Cryptographic verification of audit chain
+router.get('/verify', authenticateToken, requireRole('official'), (req, res) => {
+  verifyAuditChain((err, result) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(result);
   });
 });
 
