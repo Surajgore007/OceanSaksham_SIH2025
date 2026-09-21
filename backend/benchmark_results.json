@@ -1,16 +1,48 @@
 {
-  "test_type": "Sustained Mixed Workload (70% Read / 30% Write)",
-  "duration_s": "60.33",
+  "test_type": "Sustained Mixed Workload (70% Read / 30% Write) over Indexed SQLite",
+  "duration_s": "60.47",
   "concurrency_workers": 20,
-  "total_requests": 4270,
-  "successful_requests": 4270,
+  "total_requests": 2563,
+  "successful_requests": 2563,
   "error_rate_pct": 0,
-  "throughput_req_s": 71,
+  "throughput_req_s": 42,
+  "window_throughput": [
+    {
+      "window": "0-10s",
+      "count": 440,
+      "throughput_req_s": 44
+    },
+    {
+      "window": "10-20s",
+      "count": 465,
+      "throughput_req_s": 47
+    },
+    {
+      "window": "20-30s",
+      "count": 427,
+      "throughput_req_s": 43
+    },
+    {
+      "window": "30-40s",
+      "count": 416,
+      "throughput_req_s": 42
+    },
+    {
+      "window": "40-50s",
+      "count": 410,
+      "throughput_req_s": 41
+    },
+    {
+      "window": "50-60s",
+      "count": 384,
+      "throughput_req_s": 38
+    }
+  ],
   "latency_ms": {
-    "mean": 281.86,
-    "p50": 226.31,
-    "p95": 646.68,
-    "p99": 851.65
+    "mean": 470.28,
+    "p50": 365.75,
+    "p95": 949.08,
+    "p99": 1163.91
   },
-  "hardware_spec": "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, Windows loopback, SQLite backend"
+  "hardware_spec": "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, loopback interface, SQLite with spatial/time indices"
 }

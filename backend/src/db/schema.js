@@ -66,6 +66,11 @@ function initDatabase() {
       )
     `);
 
+    // Performance Indices for spatial-temporal duplicate checking and queue sorting
+    db.run(`CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_reports_coords_time ON reports(latitude, longitude, created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_reports_status_cred ON reports(status, credibility_score, created_at)`);
+
     // Cryptographically hash-chained audit logs for official overrides
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_logs (

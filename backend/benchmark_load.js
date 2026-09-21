@@ -1,6 +1,7 @@
 /**
  * Sustained Mixed-Workload Load Benchmark for OceanSaksham Backend API
  * Simulates concurrent citizen report submissions (writes) and official triage queue queries (reads).
+ * Logs windowed throughput across 10-second intervals to measure growth effects.
  */
 
 const http = require('http');
@@ -9,7 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 const CONCURRENCY = 20;
-const DURATION_SECONDS = 10;
+const DURATION_SECONDS = 60;
 const HOST = 'localhost';
 const PORT = 5000;
 
@@ -58,7 +59,7 @@ function sendRequest(isWrite) {
       res.on('end', () => {
         const diff = process.hrtime(t0);
         const ms = diff[0] * 1000 + diff[1] / 1e6;
-        latencies.push(ms);
+        latencies.push({ ms, time: Date.now() });
         totalRequests++;
         if (res.statusCode >= 200 && res.statusCode < 400) {
           successfulRequests++;
@@ -91,7 +92,7 @@ async function worker() {
 
 async function main() {
   console.log('='.repeat(60));
-  console.log('⚡ OceanSaksham Sustained Mixed-Workload Load Benchmark');
+  console.log('⚡ OceanSaksham Sustained Mixed-Workload Load Benchmark (60s)');
   console.log(`Hardware: Intel Core i5-12450HX (8 cores: 4P+4E, 12 threads), 16GB RAM`);
   console.log(`Duration: ${DURATION_SECONDS}s, Concurrency: ${CONCURRENCY} workers (70% Read / 30% Write)`);
   console.log('='.repeat(60));
@@ -109,35 +110,47 @@ async function main() {
   await Promise.all(workers);
   const totalDuration = (Date.now() - startTime) / 1000;
 
-  const validLatencies = latencies.sort((a, b) => a - b);
-  const throughput = Math.round(validLatencies.length / totalDuration);
-  const p50 = validLatencies[Math.floor(validLatencies.length * 0.50)].toFixed(2);
-  const p95 = validLatencies[Math.floor(validLatencies.length * 0.95)].toFixed(2);
-  const p99 = validLatencies[Math.floor(validLatencies.length * 0.99)].toFixed(2);
-  const avg = (validLatencies.reduce((a, b) => a + b, 0) / validLatencies.length).toFixed(2);
+  const validMs = latencies.map(l => l.ms).sort((a, b) => a - b);
+  const throughput = Math.round(validMs.length / totalDuration);
+  const p50 = validMs[Math.floor(validMs.length * 0.50)].toFixed(2);
+  const p95 = validMs[Math.floor(validMs.length * 0.95)].toFixed(2);
+  const p99 = validMs[Math.floor(validMs.length * 0.99)].toFixed(2);
+  const avg = (validMs.reduce((a, b) => a + b, 0) / validMs.length).toFixed(2);
   const errorRate = ((failedRequests / totalRequests) * 100).toFixed(2);
 
+  // Compute 10-second window throughputs
+  const windowSize = 10000;
+  const windows = [];
+  for (let w = 0; w < 6; w++) {
+    const wStart = startTime + w * windowSize;
+    const wEnd = wStart + windowSize;
+    const count = latencies.filter(l => l.time >= wStart && l.time < wEnd).length;
+    windows.push({ window: `${w*10}-${(w+1)*10}s`, count, throughput_req_s: Math.round(count / 10) });
+  }
+
   const results = {
-    test_type: "Sustained Mixed Workload (70% Read / 30% Write)",
+    test_type: "Sustained Mixed Workload (70% Read / 30% Write) over Indexed SQLite",
     duration_s: totalDuration.toFixed(2),
     concurrency_workers: CONCURRENCY,
     total_requests: totalRequests,
     successful_requests: successfulRequests,
     error_rate_pct: parseFloat(errorRate),
     throughput_req_s: throughput,
+    window_throughput: windows,
     latency_ms: {
       mean: parseFloat(avg),
       p50: parseFloat(p50),
       p95: parseFloat(p95),
       p99: parseFloat(p99)
     },
-    hardware_spec: "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, Windows loopback, SQLite backend"
+    hardware_spec: "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, loopback interface, SQLite with spatial/time indices"
   };
 
   console.log(`Total Requests: ${totalRequests} (${successfulRequests} successful, ${failedRequests} failed)`);
-  console.log(`Error Rate: ${errorRate}%`);
-  console.log(`Throughput: ${throughput} req/s`);
+  console.log(`Overall Throughput: ${throughput} req/s`);
   console.log(`Latency: Mean=${avg}ms, p50=${p50}ms, p95=${p95}ms, p99=${p99}ms`);
+  console.log('Window Breakdown:');
+  windows.forEach(w => console.log(`  [${w.window}]: ${w.count} reqs (${w.throughput_req_s} req/s)`));
   console.log('='.repeat(60));
 
   fs.writeFileSync(path.join(__dirname, 'benchmark_results.json'), JSON.stringify(results, null, 2));
