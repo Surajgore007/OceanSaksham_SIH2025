@@ -13,3 +13,6 @@ vite.config.*s.*
 *.sqlite3
 __pycache__/
 *.pyc
+tectonic_bin/
+tectonic.zip
+*.zip
