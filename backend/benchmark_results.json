@@ -1,13 +1,16 @@
 {
-  "hardware": "12th Gen Intel(R) Core(TM) i5-12450HX (12 cores, 16GB RAM)",
-  "total_requests": 500,
-  "concurrency": 20,
-  "duration_s": "0.10",
-  "throughput_req_s": 5102,
+  "test_type": "Sustained Mixed Workload (70% Read / 30% Write)",
+  "duration_s": "10.10",
+  "concurrency_workers": 20,
+  "total_requests": 2222,
+  "successful_requests": 2222,
+  "error_rate_pct": 0,
+  "throughput_req_s": 220,
   "latency_ms": {
-    "mean": "3.40",
-    "p50": "2.40",
-    "p95": "5.16",
-    "p99": "24.03"
-  }
+    "mean": 90.36,
+    "p50": 71.13,
+    "p95": 211.96,
+    "p99": 262.92
+  },
+  "hardware_spec": "Intel Core i5-12450HX (8 cores / 12 threads), 16GB RAM, Windows loopback, SQLite backend"
 }

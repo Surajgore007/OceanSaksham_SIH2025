@@ -50,10 +50,10 @@ During extreme marine events (tsunamis, storm surges, high wave breaches, coasta
 
 | Component | Status in Codebase | Description & Operational Notes |
 | :--- | :--- | :--- |
-| **Backend REST & SSE API** | 🟢 **Real Production Code** | Express server with JWT auth, token-bucket rate limiting, 5,102 req/s throughput ($p_{50}=2.4\text{ms}$), and Server-Sent Events hub. |
-| **Database & Cryptographic Audit** | 🟢 **Real Production Code** | Persistent SQLite/PostGIS schema with SHA-256 hash-chained append-only official audit logs. |
-| **Credibility Scoring Engine** | 🟢 **Real Production Code** | 19-dimensional feature extractor across 7 modalities with explainable reason attribution. |
-| **Marine Weather Validation** | 🟢 **Real Live API** | Real-time wave height ($H_s$) and wind speed fetched from **Open-Meteo Marine API** under ODbL terms. |
+| **Backend REST & SSE API** | 🟢 **Real Production Code** | Express server with JWT auth, token-bucket rate limiting, sustained 220 req/s mixed load throughput ($p_{50}=71.1\text{ms}$), and SSE hub. |
+| **Database & Cryptographic Audit** | 🟢 **Real Production Code** | SQLite schema with SHA-256 hash-chained append-only official audit logs and automated verification unit test (`npm test`). |
+| **Credibility Scoring Engine** | 🟢 **Real Production Code** | 19-dimensional feature extractor across 7 modalities with explainable reason attribution (JS rule engine live, Python ML benchmark). |
+| **Marine Weather Validation** | 🟢 **Real Live API** | Wave height ($H_s$) and wind speed from **Open-Meteo Marine API** (verified across Cyclone Biparjoy and Michaung vs calm baselines under ODbL terms). |
 | **Multilingual Web Client** | 🟢 **Real Production Code** | Mobile-responsive web client with Web App Manifest support across 9 coastal languages. |
 | **Emergency SOS Workflow** | 🟡 **Prototype Workflow** | Multi-state machine (`ACTIVE` $\to$ `ACKNOWLEDGED` $\to$ `RESOLVED`) logging to database and broadcasting via SSE (prototype, no 112 emergency dispatch integration). |
 | **Dataset ($N=1,000\times 5$)** | 🟡 **Synthetic Benchmark** | 5-seed parameterized synthetic benchmark with GPS degradation, adversarial hoaxes, and region-held-out spatial partition (West vs East Coast). |

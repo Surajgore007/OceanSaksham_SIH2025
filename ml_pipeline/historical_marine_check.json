@@ -1,0 +1,46 @@
+[
+  {
+    "event": "Cyclone Biparjoy (Extreme Storm)",
+    "location": "Jakhau Coast, Gujarat",
+    "date": "2023-06-15",
+    "lat": 23.23,
+    "lng": 68.6,
+    "max_wave_height_m": 4.66,
+    "mean_wave_height_m": 4.4,
+    "categorized_sea_state": "Rough/Severe (>2.5m)",
+    "rule_behavior": "CORRECT"
+  },
+  {
+    "event": "Calm Baseline Day (Post-Monsoon)",
+    "location": "Jakhau Coast, Gujarat",
+    "date": "2023-11-15",
+    "lat": 23.23,
+    "lng": 68.6,
+    "max_wave_height_m": 0.38,
+    "mean_wave_height_m": 0.33,
+    "categorized_sea_state": "Calm (<1.3m)",
+    "rule_behavior": "CORRECT"
+  },
+  {
+    "event": "Cyclone Michaung (Severe Storm)",
+    "location": "Chennai Coast, Tamil Nadu",
+    "date": "2023-12-04",
+    "lat": 13.08,
+    "lng": 80.27,
+    "max_wave_height_m": 3.34,
+    "mean_wave_height_m": 2.54,
+    "categorized_sea_state": "Rough/Severe (>2.5m)",
+    "rule_behavior": "CORRECT"
+  },
+  {
+    "event": "Calm Baseline Day (Pre-Monsoon)",
+    "location": "Chennai Coast, Tamil Nadu",
+    "date": "2023-04-15",
+    "lat": 13.08,
+    "lng": 80.27,
+    "max_wave_height_m": 0.56,
+    "mean_wave_height_m": 0.52,
+    "categorized_sea_state": "Calm (<1.3m)",
+    "rule_behavior": "CORRECT"
+  }
+]
