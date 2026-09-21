@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const submissionLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 30, // Limit each IP to 30 requests per minute
-  skip: (req) => req.headers['x-benchmark-bypass'] === 'true' || process.env.NODE_ENV === 'test',
+  skip: (req) => process.env.NODE_ENV === 'test' || (process.env.BENCHMARK_MODE === 'true' && req.headers['x-benchmark-bypass'] === 'true'),
   message: { error: 'Too many requests from this IP, please try again after a minute.' }
 });
 
