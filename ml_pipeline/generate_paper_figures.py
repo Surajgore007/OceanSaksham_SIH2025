@@ -1,9 +1,19 @@
 import os
+import sys
+import json
+import random
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+
+sys.path.insert(0, 'ml_pipeline')
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import roc_curve, auc
+from data_generator import generate_complex_dataset
+from feature_extraction import extract_features_for_dataset
 
 # Set consistent IEEE publication styling
 plt.rcParams.update({
@@ -54,7 +64,7 @@ def plot_architecture():
             ax.text(x + w/2, y + h/2 - 2, subtitle, ha='center', va='center', fontsize=7.2, color='#334155', linespacing=1.2)
 
     # 1. Citizen Tier
-    draw_box(2, 52, 22, 42, 'Citizen Web App', 'React 18 / Vite PWA\n9 Indic Languages\nGPS + Camera EXIF\nOffline IndexedDB', c_citizen, c_edge)
+    draw_box(2, 52, 22, 42, 'Citizen Web App', 'React 18 / Vite PWA\n9 Indic Languages\nGPS + Camera EXIF\nOffline Mode Indicator', c_citizen, c_edge)
 
     # 2. Ingestion & Security
     draw_box(28, 62, 19, 32, 'Ingestion & Security', 'HTTPS REST API\nRate Limiter (30/min)\nPayload Validation\nSalted Pseudonymization', c_backend, c_backend_edge)
@@ -63,10 +73,10 @@ def plot_architecture():
     draw_box(51, 52, 26, 42, 'Triage & Deduplication', 'SHA-256 Media Hashing\nSpatial Cluster (Δr≤2km)\n19-Signal Rule Scorer\nExplainable Attribution\n(Location, Time, Text, Media,\nCorrob, Rep, Marine)', c_backend, c_backend_edge)
 
     # 4. External Marine Weather
-    draw_box(51, 8, 26, 32, 'Open-Meteo Marine', 'Real-Time Ocean Physics\nSignificant Wave (Hs)\nWind Speed & Swell\nMonsoon Thresholds\n(CC BY 4.0)', c_ext, c_ext_edge)
+    draw_box(51, 8, 26, 32, 'Open-Meteo Marine', 'Model-Derived Sea-State\nTelemetry (Open-Meteo API)\nSignificant Wave (Hs)\nMonsoon Baselines (CC BY 4.0)', c_ext, c_ext_edge)
 
     # 5. Data Persistence
-    draw_box(81, 8, 17, 34, 'Storage & Audit', 'SQLite / PostgreSQL\nSpatial Compound Indices\nHash-Chained Audit Log\n(SHA-256 Linkages)', c_db, c_db_edge)
+    draw_box(81, 8, 17, 34, 'Storage & Audit', 'SQLite (Dev Storage)\nSpatial Compound Indices\nHash-Chained Audit Log\n(SHA-256 Linkages)', c_db, c_db_edge)
 
     # 6. Official Console
     draw_box(81, 54, 17, 40, 'Official Console', 'Priority Ranked Queue\nExplainable Badges\nOverride Logging\nReal-time SSE Hub\nHotspot & SOS Mgmt', c_console, c_console_edge)
@@ -193,27 +203,60 @@ def plot_lifecycle_hashchain():
 def plot_roc_ranking():
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.2, 2.6), dpi=300)
 
-    # Subplot 1: Simulated Mean ROC with std bands matching Table I
-    fpr = np.linspace(0, 1, 100)
-    # LR: AUC ~0.988
-    tpr_lr = 1 - (1 - fpr)**4.2
-    # RF: AUC ~0.987
-    tpr_rf = 1 - (1 - fpr)**4.0
-    # GBDT: AUC ~0.986
-    tpr_gbdt = 1 - (1 - fpr)**3.9
+    # Run true empirical 5-seed evaluation
+    SEEDS = [42, 1337, 2024, 777, 999]
+    base_fpr = np.linspace(0, 1, 200)
 
-    ax1.plot(fpr, tpr_lr, label='Logistic Reg. (AUC = 0.988±0.001)', color='#1D4ED8', lw=1.4)
-    ax1.fill_between(fpr, np.maximum(0, tpr_lr - 0.015), np.minimum(1, tpr_lr + 0.015), color='#1D4ED8', alpha=0.15)
+    models_config = [
+        ('Logistic Reg. (AUC = 0.988±0.001)', 'lr', '#1D4ED8', '-', 1.4),
+        ('Random Forest (AUC = 0.987±0.002)', 'rf', '#047857', '--', 1.4),
+        ('GBDT (AUC = 0.986±0.003)', 'gbdt', '#B45309', ':', 1.4),
+    ]
 
-    ax1.plot(fpr, tpr_rf, label='Random Forest (AUC = 0.987±0.002)', color='#047857', lw=1.4, linestyle='--')
-    ax1.plot(fpr, tpr_gbdt, label='GBDT (AUC = 0.986±0.003)', color='#B45309', lw=1.4, linestyle=':')
+    for label, m_type, color, ls, lw in models_config:
+        tprs = []
+        for seed in SEEDS:
+            random.seed(seed)
+            np.random.seed(seed)
+            generate_complex_dataset(1000)
+            with open('ml_pipeline/reports_dataset.json', 'r', encoding='utf-8') as f:
+                reports = json.load(f)
+            X_list, y_list, feature_names, metadata = extract_features_for_dataset(reports)
+            X = np.array(X_list, dtype=np.float32)
+            y = np.array(y_list, dtype=np.int32)
+            train_indices = [i for i, m in enumerate(metadata) if m['coast_split'] == 'west']
+            test_indices = [i for i, m in enumerate(metadata) if m['coast_split'] == 'east']
+            X_train, y_train = X[train_indices], y[train_indices]
+            X_test, y_test = X[test_indices], y[test_indices]
+
+            if m_type == 'lr':
+                model = LogisticRegression(max_iter=1000, C=0.5, random_state=seed)
+            elif m_type == 'rf':
+                model = RandomForestClassifier(n_estimators=100, max_depth=6, random_state=seed)
+            else:
+                model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.08, max_depth=3, random_state=seed)
+            
+            model.fit(X_train, y_train)
+            probs = model.predict_proba(X_test)[:, 1]
+            fpr, tpr, _ = roc_curve(y_test, probs)
+            interp_tpr = np.interp(base_fpr, fpr, tpr)
+            interp_tpr[0] = 0.0
+            tprs.append(interp_tpr)
+
+        mean_tpr = np.mean(tprs, axis=0)
+        mean_tpr[-1] = 1.0
+        std_tpr = np.std(tprs, axis=0)
+
+        ax1.plot(base_fpr, mean_tpr, label=label, color=color, linestyle=ls, lw=lw)
+        if m_type == 'lr':
+            ax1.fill_between(base_fpr, np.maximum(0, mean_tpr - std_tpr), np.minimum(1, mean_tpr + std_tpr), color=color, alpha=0.15)
 
     ax1.plot([0, 1], [0, 1], 'k--', lw=0.8, alpha=0.5, label='Random Guess (AUC = 0.50)')
     ax1.set_xlim([-0.02, 1.02])
     ax1.set_ylim([-0.02, 1.04])
     ax1.set_xlabel('False Positive Rate (FPR)')
     ax1.set_ylabel('True Positive Rate (TPR)')
-    ax1.set_title('(a) ROC Curves on Held-Out East Coast ($N=422$)', fontsize=8.5, fontweight='bold')
+    ax1.set_title('(a) Empirical ROC Curves Across 5 Seeds ($N=422$)', fontsize=8.5, fontweight='bold')
     ax1.legend(loc='lower right', frameon=True, fontsize=7)
     ax1.grid(True, linestyle=':', alpha=0.6)
 
@@ -275,7 +318,7 @@ def plot_ablation_seasonality():
     ax1.axvline(0, color='black', lw=0.8, linestyle='--')
     ax1.set_yticks(y_pos)
     ax1.set_yticklabels(groups, fontsize=7.2)
-    ax1.set_xlabel('Marginal Impact on AUC-ROC ($\Delta$ AUC)')
+    ax1.set_xlabel(r'Marginal Impact on AUC-ROC ($\Delta$ AUC)')
     ax1.set_title('(a) Feature Group Ablation (GBDT, 5 Seeds)', fontsize=8.5, fontweight='bold')
     ax1.grid(True, axis='x', linestyle=':', alpha=0.6)
     ax1.set_xlim([-0.025, 0.005])
