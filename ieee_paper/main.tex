@@ -90,8 +90,15 @@ As illustrated in Fig.~\ref{fig:arch}, the platform comprises three tiers:
 \begin{itemize}
     \item \textbf{Citizen Web Client}: Mobile-responsive interface built with React 18 and Vite, supporting Web App Manifest installation, 9 Indic languages, camera EXIF extraction, and GPS capture.
     \item \textbf{Backend REST \& SSE Service}: Node.js/Express service with SQLite storage in development (with spatial Haversine queries and compound indices, designed for migration to PostgreSQL/PostGIS in production), token-bucket rate limiting (max 30 req/min), spatial duplicate checking, and Server-Sent Events broadcasting.
-    \item \textbf{Official Dispatch Console}: Command dashboard displaying ranked reports, explainable signal attribution badges, SOS alert monitoring, and danger zone hotspot management.
+    \item \textbf{Official Dispatch Console}: Command dashboard displaying ranked reports, explainable signal attribution badges, SOS alert monitoring, and danger zone hotspot management (Fig.~\ref{fig:console_ui}).
 \end{itemize}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_console_ui.png}
+\caption{Official Dispatch Console interface, showing the live verification queue prioritized by credibility scores, active SOS incident alerts, and administrative triage controls.}
+\label{fig:console_ui}
+\end{figure}
 
 \begin{figure*}[t]
 \centering
