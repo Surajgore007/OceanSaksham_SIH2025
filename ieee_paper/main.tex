@@ -93,23 +93,12 @@ As illustrated in Fig.~\ref{fig:arch}, the platform comprises three tiers:
     \item \textbf{Official Dispatch Console}: Command dashboard displaying ranked reports, explainable signal attribution badges, SOS alert monitoring, and danger zone hotspot management.
 \end{itemize}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\fbox{\parbox{0.92\columnwidth}{\centering \textbf{System Architecture Overview} \\[4pt]
-\small
-[Citizen Web App (9 Languages)] $\to$ [GPS + EXIF + Photo Upload] \\
-$\downarrow$ \textit{HTTPS / JWT Rate-Limited} \\
-\textbf{[OceanSaksham Backend Service]} \\
-$\bullet$ Duplicate Detection (Hash + $\Delta r < 2\text{km}$, $\Delta t < 3\text{h}$) \\
-$\bullet$ Open-Meteo Marine Data (Significant Wave Height $H_s$, Wind) \\
-$\bullet$ Multi-Signal Credibility Scoring (7 Feature Groups) \\
-$\bullet$ Cryptographic Hash-Chained Audit Trail \\
-$\downarrow$ \textit{Server-Sent Events (SSE)} \\
-\textbf{[Official Dispatch Console]} $\to$ [Explainable Badges \& Audit Logs]
-}}
-\caption{Three-tier architecture of the OceanSaksham platform.}
+\includegraphics[width=0.98\textwidth]{figures/fig1_architecture.pdf}
+\caption{Three-tier architecture of the OceanSaksham platform, showing citizen ingestion with EXIF/GPS telemetry, token-bucket rate limiting, spatial deduplication, real-time Open-Meteo marine sea-state validation, 19-signal explainable heuristic triage, SSE live event broadcasting, and append-only cryptographic hash-chained audit logging.}
 \label{fig:arch}
-\end{figure}
+\end{figure*}
 
 \subsection{End-to-End Incident Pipeline Walkthrough}
 The system operates through an end-to-end automated pipeline:
@@ -118,8 +107,15 @@ The system operates through an end-to-end automated pipeline:
     \item \textbf{Duplicate Screening}: The backend computes the image SHA-256 hash and checks against existing reports within $\Delta r \le 2.0\text{ km}$ and $\Delta t \le 3.0\text{ h}$. If matched, the report is linked to the primary incident to prevent queue congestion.
     \item \textbf{Environmental Grounding}: The backend queries the Open-Meteo Marine Weather API~\cite{openmeteo2024marine} for offshore wave height ($H_s$) and wind speed at the nearest maritime grid point.
     \item \textbf{Multi-Signal Scoring}: The 19-dimensional feature vector is evaluated. The live Node.js web backend executes an explainable 19-signal heuristic rule score in JavaScript for in-memory dispatch triage, while the Python pipeline provides the offline machine learning benchmark and feature ablation harness. The benchmark's rule baseline and the deployed JavaScript triage engine implement the same multi-signal weighted heuristic (evaluating GPS error, EXIF distance delta, sea-state compatibility, and neighbor corroboration).
-    \item \textbf{Operator Decision \& Cryptographic Audit Trail}: Official operators review the ranked queue on the dispatch console. Any status transition (\texttt{VERIFIED}, \texttt{REJECTED}) generates a hash-chained record in \texttt{audit\_logs} where $h_i = \text{SHA-256}(\text{id} \parallel \text{report\_id} \parallel \text{official\_id} \parallel \text{action} \parallel \text{timestamp} \parallel h_{i-1})$, enabling detection of retroactive log modifications.
+    \item \textbf{Operator Decision \& Cryptographic Audit Trail}: Official operators review the ranked queue on the dispatch console. As illustrated in Fig.~\ref{fig:lifecycle_hashchain}a, any status transition (\texttt{VERIFIED}, \texttt{REJECTED}, \texttt{DUPLICATE}, \texttt{RESOLVED}) generates a hash-chained record in \texttt{audit\_logs} where $h_i = \text{SHA-256}(\text{id} \parallel \text{report\_id} \parallel \text{official\_id} \parallel \text{action} \parallel \text{timestamp} \parallel h_{i-1})$. Fig.~\ref{fig:lifecycle_hashchain}b demonstrates how sequential hash chaining ensures that any retroactive database modification triggers an immediate hash mismatch.
 \end{enumerate}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig2_lifecycle_hashchain.pdf}
+\caption{(a) Citizen report lifecycle state transitions showing triage review stages and append-only audit log trigger points; (b) Cryptographic SHA-256 hash chaining mechanism where any retroactive modification to past records causes forward hash mismatch and immediate tamper detection.}
+\label{fig:lifecycle_hashchain}
+\end{figure*}
 
 \section{Credibility Triage Feature Formulation}
 We formulate a 19-dimensional feature vector $\mathbf{x} \in \mathbb{R}^{19}$ across seven groups:
@@ -204,10 +200,17 @@ GBDT (Gradient Boosting)~\cite{friedman2001greedy} & $0.932 \pm 0.014$ & $0.937 
 }
 \end{table*}
 
-All three models perform within one standard deviation of each other, consistent with the benchmark being largely separable on the sea-state and GPS features.
+All three models perform within one standard deviation of each other, consistent with the benchmark being largely separable on the sea-state and GPS features. As illustrated in Fig.~\ref{fig:roc_ranking}a, the ROC curves for all three classifiers largely overlap across false positive rates.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig3_roc_ranking.pdf}
+\caption{(a) ROC curves with standard deviation bands across 5 independent seeds evaluated on the held-out East Coast partition ($N=422$), highlighting overlapping classifier performance; (b) Queue prioritization ranking metrics ($P@5, P@10, P@20, \text{NDCG}@10$), demonstrating that heuristic rules and GBDT triage significantly outperform FIFO and severity heuristics while matching each other on the synthetic benchmark.}
+\label{fig:roc_ranking}
+\end{figure*}
 
 \subsection{Queue Ranking Metrics}
-Table~\ref{tab:ranking} evaluates dispatch queue prioritization across the 5 benchmark seeds.
+Table~\ref{tab:ranking} and Fig.~\ref{fig:roc_ranking}b evaluate dispatch queue prioritization across the 5 benchmark seeds.
 
 \begin{table}[htbp]
 \centering
@@ -229,8 +232,15 @@ ML Triage (GBDT) & $\mathbf{1.00} \pm 0.00$ & $\mathbf{1.00} \pm 0.00$ & $\mathb
 
 Notably, the hand-crafted rule heuristic matches the ML model ($P@k = 1.00$, $\text{NDCG}@10 = 1.000$). This evaluated rule baseline implements the same multi-signal weighted heuristic as the deployed JavaScript dispatch console (Section~III-B). We interpret this equality not as evidence that rule systems are inherently superior in production, but as an expected property of the synthetic data generator, which models specific generative rules. The system's primary contribution is providing an explainable architecture and baseline harness that supports both rule-based heuristics and learned models interchangeably.
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig4_ablation_seasonality.pdf}
+\caption{(a) Feature group ablation study (GBDT, 5 seeds) showing marginal impact ($\Delta\text{AUC}$) relative to the full 19-dimensional feature representation; (b) Physical grounding analysis comparing significant wave heights ($H_s$) during Cyclones Biparjoy and Michaung against 5-year same-date baselines and calm/severe thresholds, illustrating regional monsoon seasonality at Jakhau in June.}
+\label{fig:ablation_seasonality}
+\end{figure*}
+
 \subsection{Feature Group Ablation}
-Table~\ref{tab:ablation} details the effect of systematically removing each feature group across the 5 evaluation seeds.
+Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation_seasonality}a detail the effect of systematically removing each feature group across the 5 evaluation seeds.
 
 \begin{table}[htbp]
 \centering
@@ -262,7 +272,7 @@ To evaluate backend performance under concurrent load, we executed a 60-second s
 Across 2,563 completed requests (zero errors, 0.00\% failure rate), the backend sustained an overall throughput of \textbf{42 requests/second}, with a mean latency of $470.28\text{ ms}$, median $p_{50} = 365.75\text{ ms}$, $p_{95} = 949.08\text{ ms}$, and $p_{99} = 1,163.91\text{ ms}$. Throughput across 10-second windows showed modest decline as the database table grew under serialized write locks: $44\text{ req/s}$ (0--10s), $47\text{ req/s}$ (10--20s), $43\text{ req/s}$ (20--30s), $42\text{ req/s}$ (30--40s), $41\text{ req/s}$ (40--50s), and $38\text{ req/s}$ (50--60s).
 
 \subsection{Marine Model Sanity Check \& Seasonality Analysis}
-To verify the physical realism of the Open-Meteo marine wave height thresholds ($H_s < 1.3\text{m}$ for calm sea-states vs. $H_s > 2.5\text{m}$ for rough/storm sea-states), we queried the Open-Meteo Marine Archive API~\cite{openmeteo2024marine} across coastal coordinates for two severe Indian tropical cyclones alongside multi-year same-date historical reanalysis baselines (2018--2022):
+To verify the physical realism of the Open-Meteo marine wave height thresholds ($H_s < 1.3\text{m}$ for calm sea-states vs. $H_s > 2.5\text{m}$ for rough/storm sea-states), as plotted in Fig.~\ref{fig:ablation_seasonality}b, we queried the Open-Meteo Marine Archive API~\cite{openmeteo2024marine} across coastal coordinates for two severe Indian tropical cyclones alongside multi-year same-date historical reanalysis baselines (2018--2022):
 \begin{itemize}
     \item \textbf{Cyclone Biparjoy} (Landfall near Jakhau, Gujarat on 15 June 2023; $23.23^\circ\text{N}, 68.60^\circ\text{E}$): Numerical wave model reanalysis yielded mean $H_s = 4.40\text{m}$ ($\max H_s = 4.66\text{m}$), triggering the rough/severe marine threshold ($>2.5\text{m}$). The 5-year same-date historical baseline (15 June 2018--2022) at the same coordinate yielded mean $H_s = 1.36\text{m}$ ($\max H_s = 1.40\text{m}$).
     \item \textbf{Cyclone Michaung} (Tracking close along the Chennai coast, Tamil Nadu on 3--4 December 2023 before making landfall near Bapatla, Andhra Pradesh on 5 December 2023; $13.08^\circ\text{N}, 80.27^\circ\text{E}$): Model output on 4 December 2023 yielded mean $H_s = 2.54\text{m}$ (marginal around the threshold, $\max H_s = 3.34\text{m}$), whereas the 5-year same-date historical baseline (4 December 2018--2022) yielded mean $H_s = 1.11\text{m}$.
