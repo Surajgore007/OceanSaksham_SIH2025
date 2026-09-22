@@ -227,7 +227,7 @@ ML Triage (GBDT) & $\mathbf{1.00} \pm 0.00$ & $\mathbf{1.00} \pm 0.00$ & $\mathb
 }
 \end{table}
 
-Notably, the hand-crafted rule heuristic matches the ML model ($P@k = 1.00$, $\text{NDCG}@10 = 1.000$). We interpret this not as evidence that rule systems are inherently superior in production, but as an expected property of the synthetic data generator, which models specific generative rules. The system's primary contribution is providing an explainable architecture and baseline harness that supports both rule-based heuristics and learned models interchangeably.
+Notably, the hand-crafted rule heuristic matches the ML model ($P@k = 1.00$, $\text{NDCG}@10 = 1.000$). This evaluated rule baseline implements the same multi-signal weighted heuristic as the deployed JavaScript dispatch console (Section~III-B). We interpret this equality not as evidence that rule systems are inherently superior in production, but as an expected property of the synthetic data generator, which models specific generative rules. The system's primary contribution is providing an explainable architecture and baseline harness that supports both rule-based heuristics and learned models interchangeably.
 
 \subsection{Feature Group Ablation}
 Table~\ref{tab:ablation} details the effect of systematically removing each feature group across the 5 evaluation seeds.
